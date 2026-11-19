@@ -3,6 +3,7 @@ import { type Owner, type WindKey, WINDS, useStore } from '../store.ts'
 import { byId, facadesOf, lots, myApt, oldBuildings, towers, trees } from '../lib/site.ts'
 import { KEY_DAYS, dateLabel, hourLabel, sunAt } from '../lib/sun.ts'
 import rawQ from '../../data/quantities.json'
+import { LEGEND, type Paint, paintKey } from '../lib/claim.ts'
 import { aptReport, exposure, exposureWord, parkSunHours, rankTmura, unitReport } from '../lib/analysis.ts'
 
 const n1 = (x: number) => x.toLocaleString('he', { maximumFractionDigits: 1 })
@@ -12,6 +13,27 @@ const Check = ({ id, label, on, flip }: { id: string; label: string; on: boolean
 
 const quantities = rawQ as unknown as Record<string, { storeys: number; walls: number; concrete_m3: number; block_m3: number; slab_m2: number; balcony_m2: number; glazing_m2: number; windows: number; railing_m: number }>
 const big = (x: number) => Math.round(x).toLocaleString('he')
+
+const PAINTS: [Paint, string][] = [['none', 'בלי'], ['four', 'ארבע הדירות שלנו'], ['owners', 'בעלים מול יזם'], ['types', 'סוגי דירות הבעלים']]
+/** בורר צביעת הדירות, עם מקרא וספירה לכל קבוצה. */
+function PaintPicker() {
+  const s = useStore()
+  const counts = useMemo(() => {
+    const m = new Map<string, number>()
+    if (s.paint !== 'none') for (const b of towers) for (const f of b.real?.floors ?? []) for (const u of f.apts) { const k = paintKey(s.paint, b.lot!, u.type, f.floor, u.tmura); if (k) m.set(k, (m.get(k) ?? 0) + 1) }
+    return m
+  }, [s.paint])
+  return (
+    <>
+      <h4>צביעת דירות</h4>
+      <div className="seg wide paints" role="group" aria-label="צביעת דירות">
+        {PAINTS.map(([k, name]) => <button key={k} type="button" aria-pressed={s.paint === k} onClick={() => s.set({ paint: k, mode: 'future' })}>{name}</button>)}
+      </div>
+      {s.paint !== 'none' && <ul className="legend">{LEGEND[s.paint].map((l) => <li key={l.key}><i style={{ background: l.color }} />{l.name}<b>{counts.get(l.key) ?? 0}</b></li>)}</ul>}
+      {s.paint !== 'none' && <p className="note">כל דירה מסומנת בלוח צבע על החזיתות שהיא פונה אליהן. <b>עובדה:</b> השיוך לבעלים לפי טבלת הדירות המוצעות. <b>הערכה:</b> דופלקס נספר בשתי קומות, ולכן הסכום אינו בדיוק 100.</p>}
+    </>
+  )
+}
 
 function Site() {
   const s = useStore()
@@ -61,16 +83,17 @@ function Site() {
           <tbody>{towers.map((t) => <tr key={t.id} className={s.selected === t.id ? 'on' : ''} onClick={() => s.set({ selected: t.id })}><td><b>{t.lot}</b></td><td>{t.floors}</td><td>{t.h} מ'</td><td>{lots.find((l) => l.num === t.lot)!.rights!.units || ''}</td></tr>)}</tbody>
         </table>
       )}
+      <PaintPicker />
       <h4>שכבות</h4>
       <div className="checks">
         <Check id="l-sat" label="תצלום לוויין" on={s.sat} flip={() => s.set({ sat: !s.sat })} />
         <Check id="l-lots" label="ייעודי קרקע" on={s.lots} flip={() => s.set({ lots: !s.lots })} />
         <Check id="l-trees" label="עצים" on={s.trees} flip={() => s.set({ trees: !s.trees })} />
         <Check id="l-bim" label="מודל BIM: אלמנטים לכל קומה" on={s.bim} flip={() => s.set({ bim: !s.bim })} />
-        <Check id="l-fac" label="חזיתות מההיתר" on={s.facades} flip={() => s.set({ facades: !s.facades })} />
+        <Check id="l-fac" label="גימור בצבעי האדריכל" on={s.facades} flip={() => s.set({ facades: !s.facades })} />
         <Check id="l-det" label="מרפסות ופתחים בתלת־ממד" on={s.detail} flip={() => s.set({ detail: !s.detail })} />
       </div>
-      <p className="note"><b>עובדה:</b> קו המתאר מתוכניות הבניינים, והגבהים ומפלסי הקומות מהחתכים שבגיליונות ההיתר. בניין 103 ממוקם לפי תוכנית ההעמדה. החזיתות הן שרטוטי החזית מגיליונות ההיתר, מולבשים על הבניין בהיטל ישר. במודל ה־BIM כל קומה בנויה מהתוכנית שלה: תקרה, קירות בטון ובלוק, חלונות, מרפסות ומעקות, כולל קומת הקרקע והגלריה. <b>הערכה:</b> גובה האדן והמשקוף של החלונות אחיד ומשוער, כי החזיתות בהיתר הן סריקה ולא מדידה. חיפוי וגוונים אינם במודל, ונראים בשכבת "חזיתות מההיתר" כשמכבים את ה־BIM. בית הכנסת מוצג כמעטפת קו הבניין.</p>
+      <p className="note"><b>עובדה:</b> קו המתאר מתוכניות הבניינים, והגבהים ומפלסי הקומות מהחתכים שבגיליונות ההיתר. בניין 103 ממוקם לפי תוכנית ההעמדה. החזיתות הן שרטוטי החזית מגיליונות ההיתר, מולבשים על הבניין בהיטל ישר. במודל ה־BIM כל קומה בנויה מהתוכנית שלה: תקרה, קירות בטון ובלוק, חלונות, מרפסות ומעקות, כולל קומת הקרקע והגלריה. <b>הערכה:</b> גובה האדן והמשקוף של החלונות אחיד ומשוער, כי החזיתות בהיתר הן סריקה ולא מדידה. הגימור הוא שכבת חיפוי שעוטפת את הקירות, בארבעה גוונים: לבן, אפור פחם, אפור בהיר וכתום. צבע כל קטע בכל קומה נדגם מחזיתות ההיתר, ולכן ייתכנו קטעים בודדים בגוון שגוי.</p>
       <a className="link" href="/tasrit.html" target="_blank" rel="noreferrer">התסריט המלא</a>
     </>
   )

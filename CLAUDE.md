@@ -16,6 +16,8 @@
 - הוגנות התמורה: `src/ui/Fair.tsx`. מודל של שני בעלים, לא נתוני הפרויקט: שטחי הדירות הישנות של שאר הבעלים אינם ידועים.
 - חזיתות: `public/facades/` ו־`data/facades.json`, נבנים ב־`tools/build-facades.py` מגיליונות ההיתר שבדרייב. מרפסות, מעקות ופתחי זכוכית הם גיאומטריה אמיתית (`FacadeDetail` ב־`Scene.tsx`), מנתוני `public/floors/` (שדות `body`, `balconies`, `openings`).
 - מודל BIM: `BimModel` ב־`Scene.tsx` בונה כל קומה מ־`public/floors/` (קירות, תקרות, פתחים, מרפסות, מפלסים). `tools/build-ifc.py` מייצא IFC ל־`public/ifc/` וכמויות ל־`data/quantities.json`. אחרי שינוי ב־`build-floors.py` מריצים גם אותו. כל אלמנט נגזר מהתוכנית, ולא מצויר ביד.
+- גימור: `tools/build-cladding.py` דוגם את חזיתות ההיתר וקובע צבע חיפוי (לבן, פחם, אפור, כתום) לכל קטע קיר חיצוני בכל קומה. מריצים אחרי `build-floors.py` ו־`build-facades.py`. החיפוי הוא שכבה על הקירות, לא תחליף להם.
+- צביעת דירות: `paintKey` ו־`LEGEND` ב־`src/lib/claim.ts`, `UnitPaint` ב־`Scene.tsx`. קבוצות ולא שמות.
 - ההסכם והטענה: `src/ui/Claim.tsx` ו־`src/lib/claim.ts`. ההסכם עצמו (שמות ומספרי זהות) אינו בריפו; בדף יש רק ציטוטי סעיפים ונתוני המודל. הדף אינו ייעוץ משפטי, וזה כתוב בו.
 - צירים: x מזרחה, y צפונה, במטרים מקומיים. בסצנה: `(x, גובה, -y)`.
 - ענף הייצור הוא `main`, והפריסה ב־Vercel.

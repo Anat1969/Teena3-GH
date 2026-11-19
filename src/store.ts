@@ -18,7 +18,7 @@ export const WINDS: Record<WindKey, { name: string; from: number; text: string }
 
 interface S {
   mode: Mode; tab: Tab; day: number; hour: number; playing: boolean
-  sat: boolean; lots: boolean; trees: boolean; heat: boolean; plan: boolean; facades: boolean; detail: boolean; bim: boolean
+  sat: boolean; lots: boolean; trees: boolean; heat: boolean; plan: boolean; facades: boolean; detail: boolean; bim: boolean; paint: 'none' | 'four' | 'owners' | 'types'
   wind: WindKey; selected: number | null
   apt: Record<Mode, Apt | null>; score: Score; owners: Owner[]
   cam: { view: 'bird' | 'top' | 'window' | 'plan'; n: number }
@@ -37,7 +37,7 @@ const saved = load()
 
 export const useStore = create<S>((set, get) => ({
   mode: 'future', tab: 'site', day: KEY_DAYS[0].day, hour: 12, playing: false,
-  sat: true, lots: false, trees: true, heat: false, plan: false, facades: true, detail: true, bim: true,
+  sat: true, lots: false, trees: true, heat: false, plan: false, facades: true, detail: true, bim: true, paint: 'none',
   wind: 'summer', selected: null,
   apt: { existing: null, future: MINE, ...(saved.apt ?? {}) },
   score: { street: 1, floor: 1, air: 1, state: 1, area: 0, ...(saved.score ?? {}) },

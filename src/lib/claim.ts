@@ -14,6 +14,28 @@ const unitsIn = (b: Building) => lots.find((l) => l.num === b.lot)!.rights!.unit
 const TOWER_EXPANDED = new Set(['102|A4|4', '102|A4-4T|6', '103|A4|4', '103|A4-2T|5'])
 const isTower = (lot: string) => lot === '102' || lot === '103'
 
+/** האם הדירה שייכת לבעלים ותיקים (דירת תמורה), ולא ליזם. */
+export const isOwnerUnit = (lot: string, type: string, floor: number, tmura: boolean) => {
+  const key = `${lot}|${type}|${floor}`
+  if (TOWER_EXPANDED.has(key)) return true
+  return tmura && !(isTower(lot) && rooms(type) >= 4)
+}
+export const isFour = (lot: string, type: string, floor: number) => TOWER_EXPANDED.has(`${lot}|${type}|${floor}`)
+export type Paint = 'none' | 'four' | 'owners' | 'types'
+export const LEGEND: Record<Exclude<Paint, 'none'>, { key: string; name: string; color: string }[]> = {
+  four: [{ key: 'four', name: 'ארבע הדירות המורחבות שבמגדלים', color: '#D7263D' }],
+  owners: [{ key: 'owner', name: 'דירות הבעלים הוותיקים', color: '#1F5FBF' }, { key: 'dev', name: 'דירות היזם, לדיירים חדשים', color: '#E8B04A' }],
+  types: [{ key: 't3', name: 'בעלים: 3 חדרים, 80 מ"ר', color: '#3F7D4E' }, { key: 'four', name: 'בעלים: ארבע המורחבות שבמגדלים', color: '#D7263D' }, { key: 't4', name: 'בעלים: מורחבת, 4 עד 4.5 חדרים', color: '#E07B39' }, { key: 't5', name: 'בעלים: מורחבת, 5 חדרים ומעלה', color: '#7A4FB5' }],
+}
+/** הקטגוריה של דירה במצב צביעה נתון, או null אם אינה נצבעת. */
+export function paintKey(mode: Paint, lot: string, type: string, floor: number, tmura: boolean): string | null {
+  const own = isOwnerUnit(lot, type, floor, tmura), four = isFour(lot, type, floor)
+  if (mode === 'four') return four ? 'four' : null
+  if (mode === 'owners') return own ? 'owner' : 'dev'
+  if (mode === 'types') return !own ? null : four ? 'four' : rooms(type) <= 3 ? 't3' : rooms(type) < 5 ? 't4' : 't5'
+  return null
+}
+
 let cache: Row[] | null = null
 export function tmuraRows(): Row[] {
   if (cache) return cache

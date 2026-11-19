@@ -62,6 +62,11 @@ python3 tools/build-buildings.py
 - `tools/build-ifc.py`: מייצא כל בניין ל־IFC4 (`public/ifc/<תא>.ifc`) עם IfcBuildingStorey, IfcWall, IfcSlab, IfcWindow ו־IfcRailing, ומחשב כמויות ל־`data/quantities.json`.
 - מה חסר לרמת Revit מלאה: דלתות, מדרגות ומעליות כאלמנטים, עמודים וקורות, מרתפים, חיפויים וחומרים, וחדרים (IfcSpace) לכל דירה.
 
+## גימור וצביעת דירות
+
+- `tools/build-cladding.py`: צבע חיפוי לכל קטע קיר חיצוני בכל קומה, נדגם מחזיתות ההיתר. סדר ההרצה: `build-floors.py`, `build-facades.py`, `build-cladding.py`, `build-ifc.py`.
+- צביעת דירות בלשונית "המתחם": ארבע הדירות המורחבות שבמגדלים, בעלים מול יזם, וסוגי דירות הבעלים, עם מקרא וספירה.
+
 ## חזיתות
 
 - `tools/build-facades.py <תיקיית קובצי ההיתר>`: חותך את ארבע החזיתות של כל בניין מגיליונות ההיתר, ושומר ב־`public/facades/` וב־`data/facades.json`.

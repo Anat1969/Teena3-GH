@@ -9,6 +9,8 @@ import { groundSunHours } from '../lib/shade.ts'
 import { aptSpot, heightMapFor } from '../lib/analysis.ts'
 import { WINDS, useStore } from '../store.ts'
 import rawFacades from '../../data/facades.json'
+import { LEGEND, type Paint, paintKey } from '../lib/claim.ts'
+import { unitFaces } from '../lib/site.ts'
 
 const INK = '#2E2E2B'
 const APT = '#D7263D'
@@ -183,6 +185,9 @@ const M_BLOCK = new THREE.MeshLambertMaterial({ color: '#F5F3EE' })
 const M_INFILL = new THREE.MeshLambertMaterial({ color: '#D9D5CC' })
 const M_SLAB = new THREE.MeshLambertMaterial({ color: '#C9C5BB' })
 const SLAB_T = 0.2
+// לוח הצבעים של האדריכל, כפי שנקרא מחזיתות ההיתר: לבן, אפור פחם, אפור בהיר וכתום
+const CLAD = ['#F5F3EE', '#4E4F54', '#AEB4BF', '#E2923F'].map((c) => new THREE.Color(c))
+const M_CLAD = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide })
 /** אינסטנסים של גיאומטריה אחת בכמה קומות. scaleY מותח את הקירות לגובה הקומה. */
 function Storeys({ g, mat, at, cast }: { g: THREE.BufferGeometry; mat: THREE.Material; at: { y: number; s: number }[]; cast?: boolean }) {
   const ref = useRef<THREE.InstancedMesh>(null)
@@ -196,6 +201,7 @@ function Storeys({ g, mat, at, cast }: { g: THREE.BufferGeometry; mat: THREE.Mat
 }
 /** הבניין כאוסף אלמנטים: בכל קומה תקרה, קירות בטון ובלוק, מילוי מתחת ומעל לפתחים, זיגוג ומעקות. הכול מתוכנית אותה קומה. */
 function BimModel({ b, top }: { b: Building; top: number }) {
+  const finish = useStore((s) => s.facades)
   const [file, setFile] = useState<FloorFile | null>(null)
   useEffect(() => { let live = true; loadFloors(b.real!.plan).then((f) => live && setFile(f)); return () => { live = false } }, [b])
   const parts = useMemo(() => {
@@ -236,6 +242,35 @@ function BimModel({ b, top }: { b: Building; top: number }) {
         walls: lv.map((l) => ({ y: l[0], s: l[1] - SLAB_T })), flat: lv.map((l) => ({ y: l[0], s: 1 })) }
     })
   }, [file, b, top])
+  // גימור: חיפוי בצבעי האדריכל, שכבה דקה שעוטפת את הקירות החיצוניים. הצבע של כל קטע בכל קומה נדגם מחזיתות ההיתר.
+  const cladding = useMemo(() => {
+    if (!file) return null
+    const M = file.lots[b.lot!], to = ([x, y]: Pt): Pt => [x * M[0][0] + y * M[1][0] + M[2][0], x * M[0][1] + y * M[1][1] + M[2][1]]
+    const pos: number[] = [], col: number[] = []
+    for (const pg of Object.values(file.pages)) {
+      if (!pg.cladding) continue
+      const segs = pg.cladding.segs.map((s) => ({ a: to([s[0], s[1]]), c: to([s[2], s[3]]) }))
+      for (const fl of pg.floors) {
+        const lv = file.levels[String(fl)], row = pg.cladding.colors[String(fl)]
+        if (!lv || !row || lv[0] + 1 > top) continue
+        segs.forEach((s, i) => {
+          const len = Math.hypot(s.c[0] - s.a[0], s.c[1] - s.a[1])
+          if (len < 0.05) return
+          const nx = ((s.c[1] - s.a[1]) / len) * 0.09, ny = (-(s.c[0] - s.a[0]) / len) * 0.09
+          const P = [[s.a[0] + nx, s.a[1] + ny], [s.c[0] + nx, s.c[1] + ny], [s.c[0] - nx, s.c[1] - ny], [s.a[0] - nx, s.a[1] - ny]]
+          const y0 = lv[0] - SLAB_T, y1 = lv[0] + lv[1] - SLAB_T, c = CLAD[Number(row[i])]
+          for (let k = 0; k < 4; k++) {
+            const j = (k + 1) % 4
+            pos.push(P[k][0], y0, -P[k][1], P[j][0], y0, -P[j][1], P[j][0], y1, -P[j][1], P[k][0], y0, -P[k][1], P[j][0], y1, -P[j][1], P[k][0], y1, -P[k][1])
+            for (let q = 0; q < 6; q++) col.push(c.r, c.g, c.b)
+          }
+        })
+      }
+    }
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.computeVertexNormals()
+    return g
+  }, [file, b, top])
   const roof = useMemo(() => {
     if (!file || top < file.roof) return null
     const M = file.lots[b.lot!], to = ([x, y]: Pt): Pt => [x * M[0][0] + y * M[1][0] + M[2][0], x * M[0][1] + y * M[1][1] + M[2][1]]
@@ -259,10 +294,36 @@ function BimModel({ b, top }: { b: Building; top: number }) {
           <Storeys g={p2.rails} mat={RAIL} at={p2.flat} />
         </group>
       ))}
+      {cladding && finish && <mesh geometry={cladding} material={M_CLAD} castShadow receiveShadow />}
       {roof && <mesh geometry={roof.slab} material={M_SLAB} receiveShadow />}
       {roof && <mesh geometry={roof.par} material={M_CONC} receiveShadow />}
     </group>
   )
+}
+
+// ---------- צביעת דירות לפי קבוצה ----------
+function UnitPaint({ mode }: { mode: Exclude<Paint, 'none'> }) {
+  const list = useMemo(() => {
+    const colors = new Map(LEGEND[mode].map((l) => [l.key, new THREE.Color(l.color)]))
+    const out: { m: THREE.Matrix4; c: THREE.Color }[] = []
+    for (const b of towers) for (const f of b.real?.floors ?? []) for (const u of f.apts) {
+      const k = paintKey(mode, b.lot!, u.type, f.floor, u.tmura)
+      if (!k) continue
+      const z = b.real!.levels[String(f.floor)]
+      for (const face of unitFaces(b, u.at).slice(0, 2)) {
+        const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.atan2(face.nx, -face.ny) + Math.PI, 0))
+        out.push({ m: new THREE.Matrix4().compose(v(face.at[0] + face.nx * 0.9, face.at[1] + face.ny * 0.9, z + 1.45), q, new THREE.Vector3(mode === 'four' ? 7 : 4.6, 2.5, 0.5)), c: colors.get(k)! })
+      }
+    }
+    return out
+  }, [mode])
+  const ref = useRef<THREE.InstancedMesh>(null)
+  useEffect(() => {
+    list.forEach((x, i) => { ref.current!.setMatrixAt(i, x.m); ref.current!.setColorAt(i, x.c) })
+    ref.current!.instanceMatrix.needsUpdate = true
+    if (ref.current!.instanceColor) ref.current!.instanceColor.needsUpdate = true
+  }, [list])
+  return <instancedMesh key={mode + list.length} ref={ref} args={[undefined, undefined, list.length]} frustumCulled={false}><boxGeometry args={[1, 1, 1]} /><meshBasicMaterial transparent opacity={0.88} /></instancedMesh>
 }
 
 // ---------- בניינים ----------
@@ -500,7 +561,7 @@ function AptMarker() {
 
 // ---------- חתך בקומה ----------
 type Poly = { pts: Pt[]; holes: Pt[][] }
-interface FloorPage { body: Pt[]; balconies: number[][]; openings: number[][]; floors: number[]; bbox: [number, number, number, number]; floor: Pt[]; walls: { concrete: Poly[]; block: Poly[] }; core: { name: string; at: Pt }[] }
+interface FloorPage { cladding?: { segs: number[][]; colors: Record<string, string> }; body: Pt[]; balconies: number[][]; openings: number[][]; floors: number[]; bbox: [number, number, number, number]; floor: Pt[]; walls: { concrete: Poly[]; block: Poly[] }; core: { name: string; at: Pt }[] }
 interface FloorFile { levels: Record<string, [number, number]>; roof: number; parapet: number; pages: Record<string, FloorPage>; lots: Record<string, number[][]> }
 const floorCache = new Map<string, Promise<FloorFile>>()
 const loadFloors = (plan: string) => {
@@ -612,6 +673,7 @@ export default function Scene() {
   const mode = useStore((s) => s.mode), tab = useStore((s) => s.tab)
   const plan = useStore((s) => s.plan), apt = useStore((s) => s.apt[s.mode])
   const aptB = byId(apt?.id ?? null), cutOn = tab === 'home' && plan && mode === 'future' && !!aptB?.real && !!apt
+  const paint = useStore((s) => s.paint)
   const sat = useStore((s) => s.sat), showLots = useStore((s) => s.lots), showTrees = useStore((s) => s.trees), heat = useStore((s) => s.heat)
   const set = useStore((s) => s.set)
   return (
@@ -626,6 +688,7 @@ export default function Scene() {
       <Context />
       {(mode === 'future' ? towers : oldBuildings).map((b) => <Block key={b.id} b={b} />)}
       {showTrees && <Trees />}
+      {mode === 'future' && paint !== 'none' && <UnitPaint mode={paint} />}
       {heat && tab === 'sun' && <Heat />}
       {tab === 'wind' && <Wind />}
       {tab === 'home' && !cutOn && <AptMarker />}
