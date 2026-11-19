@@ -32,6 +32,13 @@ RIGHTS = {
 
 out = {"origin_itm": ORIGIN, "origin_wgs": [round(v, 7) for v in to_wgs.transform(*ORIGIN)]}
 
+# העתקה ליניארית ממעלות למטרים מקומיים סביב נקודת הייחוס (כוללת את סיבוב הרשת), לשכבת הלוויין
+lon0, lat0 = to_wgs.transform(*ORIGIN)
+e = 0.01
+ax, ay = to_itm.transform(lon0 + e, lat0)
+bx, by = to_itm.transform(lon0, lat0 + e)
+out["geo"] = dict(lon0=lon0, lat0=lat0, a=(ax - ORIGIN[0]) / e, c=(ay - ORIGIN[1]) / e, b=(bx - ORIGIN[0]) / e, d=(by - ORIGIN[1]) / e)
+
 r = rd("MVT_GVUL")
 out["boundary"] = rings(r.shape(0))[0]
 

@@ -122,4 +122,7 @@ html = tpl.replace("{{SVG}}", SVG).replace("{{ROWS}}", rows)
 for k, v in facts.items():
     html = html.replace("{{%s}}" % k, ("%.1f" % v) if isinstance(v, float) else str(v))
 (ROOT / "tasrit.html").write_text(html, encoding="utf-8")
+# עותק מלא לאתר: אותו תוכן, עטוף במסמך HTML
+(ROOT / "public").mkdir(exist_ok=True)
+(ROOT / "public" / "tasrit.html").write_text('<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0}[hidden]{display:none!important}</style></head><body>' + html + "</body></html>", encoding="utf-8")
 print(facts, "towers", [(t["num"], t["height"]) for t in towers], "ctx in frame", len(context), "bytes", len(html))
