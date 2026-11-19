@@ -89,9 +89,8 @@ function Block({ b }: { b: Building }) {
   const g = useMemo(() => prism(b.pts, b.h), [b])
   const lines = useMemo(() => {
     const pos: number[] = []
-    const levels = b.real ? b.real.top + b.real.base + 1 : b.floors
-    for (let f = 1; f <= levels; f++) {
-      const y = (f * b.h) / levels
+    const ys = b.real ? [...Object.values(b.real.levels), b.real.roof, b.h] : Array.from({ length: b.floors }, (_, i) => ((i + 1) * b.h) / b.floors)
+    for (const y of ys) {
       b.pts.forEach((p, i) => { const q = b.pts[(i + 1) % b.pts.length]; pos.push(p[0], y, -p[1], q[0], y, -q[1]) })
     }
     b.pts.forEach((p) => pos.push(p[0], 0, -p[1], p[0], b.h, -p[1]))
@@ -117,7 +116,7 @@ function Block({ b }: { b: Building }) {
       <lineSegments geometry={lines}><lineBasicMaterial color={INK} transparent opacity={b.kind === 'tower' ? 0.28 : 0.4} /></lineSegments>
       {b.kind === 'tower' && (
         <Html position={[b.pts.reduce((s, p) => s + p[0], 0) / b.pts.length, b.h + 6, -b.pts.reduce((s, p) => s + p[1], 0) / b.pts.length]} center zIndexRange={[5, 0]} style={{ pointerEvents: 'none' }}>
-          <div className="tag"><b>{b.lot}</b> {b.h} מ'</div>
+          <div className="tag"><b>{b.lot}</b> {Math.round(b.h)} מ'</div>
         </Html>
       )}
     </group>
@@ -279,7 +278,7 @@ function AptMarker() {
   const b = byId(apt?.id ?? null)
   const spot = aptSpot(apt, b)
   if (!apt || !b || !spot) return null
-  const f = spot.face, z = spot.z, fh = b.h / (b.real ? b.real.top + b.real.base + 1 : b.floors)
+  const f = spot.face, z = spot.z, fh = b.real ? 3.15 : b.h / b.floors
   const rotY = Math.atan2(f.nx, -f.ny) + Math.PI
   return (
     <group position={v(f.at[0] + f.nx * 0.4, f.at[1] + f.ny * 0.4, z)} rotation-y={rotY}>

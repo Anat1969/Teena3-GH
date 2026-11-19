@@ -20,7 +20,7 @@ assert.equal(instant(dayOfYear(12, 21), 12).getUTCHours(), 10)
 assert.ok(sunAt(dayOfYear(3, 21), 8).ex > 0 && sunAt(dayOfYear(3, 21), 16).ex < 0)
 
 assert.equal(towers.length, 5)
-assert.deepEqual(towers.map((t) => t.h), [71, 99, 99, 37, 17])
+assert.deepEqual(towers.map((t) => t.h), [69.05, 94.09, 94.09, 33.36, 17])
 assert.ok(oldBuildings.filter((b) => b.h > 8).length >= 6)
 
 // צל: נקודה 100 מטר מצפון למגדל 103 מוצלת בצהרי החורף (צל של 143 מטר), ו-200 מטר מצפון כבר לא
@@ -40,4 +40,6 @@ const sw = f.find((x) => x.key === 'sw')!, ne = f.find((x) => x.key === 'ne')!
 const hSw = facadeSun(hm, sw.at, sw.nx, sw.ny, 60, dayOfYear(12, 21), t103.id).hours
 const hNe = facadeSun(hm, ne.at, ne.nx, ne.ny, 60, dayOfYear(12, 21), t103.id).hours
 assert.ok(hSw > hNe, `דרום־מערב ${hSw} מול צפון־מזרח ${hNe}`)
+import { floorZ } from '../src/lib/site.ts'
+assert.equal(floorZ(t103, 5), 20.1 + 1.5) // קומה 5 במפלס 20.10 לפי החתך
 console.log('כל הבדיקות עברו. צהרי החורף בשעה', noon.toFixed(2), '| שמש בחורף, קומה גבוהה במגדל 103: דרום־מערב', hSw, 'שעות, צפון־מזרח', hNe, 'שעות')

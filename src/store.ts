@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { KEY_DAYS } from './lib/sun.ts'
+import { towers } from './lib/site.ts'
 
 export type Mode = 'existing' | 'future'
 export type Tab = 'site' | 'sun' | 'wind' | 'home'
@@ -26,7 +27,9 @@ interface S {
   look: (view: 'bird' | 'top' | 'window') => void
 }
 
-const KEY = 'teena3.v2'
+// הדירה של ענת במצב העתידי: בניין 103, קומה 5, טיפוס A4-2T. בלי שמות.
+const MINE: Apt | null = (() => { const b = towers.find((t) => t.lot === '103'); return b ? { id: b.id, floor: 5, facade: 'ne', unit: 'A4-2T' } : null })()
+const KEY = 'teena3.v3'
 function load(): Partial<S> {
   try { return JSON.parse(localStorage.getItem(KEY) ?? '{}') } catch { return {} }
 }
@@ -36,7 +39,7 @@ export const useStore = create<S>((set, get) => ({
   mode: 'future', tab: 'site', day: KEY_DAYS[0].day, hour: 12, playing: false,
   sat: true, lots: false, trees: true, heat: false,
   wind: 'summer', selected: null,
-  apt: { existing: null, future: null, ...(saved.apt ?? {}) },
+  apt: { existing: null, future: MINE, ...(saved.apt ?? {}) },
   score: { street: 1, floor: 1, air: 1, state: 1, area: 0, ...(saved.score ?? {}) },
   owners: saved.owners ?? [],
   cam: { view: 'bird', n: 0 },

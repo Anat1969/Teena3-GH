@@ -52,7 +52,7 @@ export default function App() {
 
           <div className="float readout" aria-live="polite">
             {sun.altitude > 0
-              ? <><b>{sun.altitude.toFixed(0)}°</b> גובה השמש<i />צל של מגדל 99 מ': <b>{sun.altitude > 1 ? Math.round(99 / sun.tan).toLocaleString('he') : '∞'} מ'</b></>
+              ? <><b>{sun.altitude.toFixed(0)}°</b> גובה השמש<i />צל של מגדל 94 מ': <b>{sun.altitude > 1 ? Math.round(94.09 / sun.tan).toLocaleString('he') : '∞'} מ'</b></>
               : <>השמש מתחת לאופק</>}
           </div>
 

@@ -19,7 +19,7 @@ function Site() {
       <p className="insight">{future ? <><mark>375 דירות במקום 100</mark>, בחמישה נפחים סביב גינה אחת.</> : <><mark>שישה בנייני שיכון של שלוש קומות</mark>, 100 דירות, בלי מעלית.</>}</p>
       <div className="stats">
         {future
-          ? <><div><b>375</b>דירות</div><div><b>99 מ'</b>הגובה המרבי</div><div><b>3.8</b>דונם שצ"פ</div><div><b>29</b>עצים נשמרים</div></>
+          ? <><div><b>375</b>דירות</div><div><b>94 מ'</b>ראש המעקה</div><div><b>3.8</b>דונם שצ"פ</div><div><b>29</b>עצים נשמרים</div></>
           : <><div><b>100</b>דירות</div><div><b>9.5 מ'</b>גובה מדוד</div><div><b>{oldBuildings.filter((x) => x.h > 8).length}</b>בניינים</div><div><b>{trees.length}</b>עצים</div></>}
       </div>
       {b ? (
@@ -46,7 +46,7 @@ function Site() {
         <Check id="l-lots" label="ייעודי קרקע" on={s.lots} flip={() => s.set({ lots: !s.lots })} />
         <Check id="l-trees" label="עצים" on={s.trees} flip={() => s.set({ trees: !s.trees })} />
       </div>
-      <p className="note"><b>עובדה:</b> קו המתאר של בניינים 101 עד 104 מתוכניות הבניינים, ממוקם לפי קו המגרש שבגיליון. <b>הערכה:</b> הגובה לפי התוכנית, כי אין עדיין חתכים. בית הכנסת מוצג כמעטפת קו הבניין.</p>
+      <p className="note"><b>עובדה:</b> קו המתאר מתוכניות הבניינים, והגבהים ומפלסי הקומות מהחתכים שבגיליונות ההיתר. בניין 103 ממוקם לפי תוכנית ההעמדה. <b>הערכה:</b> בית הכנסת מוצג כמעטפת קו הבניין, וחדרי המדרגות שמעל הגג לא מוצגים.</p>
       <a className="link" href="/tasrit.html" target="_blank" rel="noreferrer">התסריט המלא</a>
     </>
   )
@@ -64,11 +64,11 @@ function SunTab() {
   const dirs = ['צפון', 'צפון־מזרח', 'מזרח', 'דרום־מזרח', 'דרום', 'דרום־מערב', 'מערב', 'צפון־מערב']
   return (
     <>
-      <p className="insight"><mark>בחורף הצל יוצא מגבולות המתחם.</mark> מגדל של 99 מ' מטיל בצהרי 21 בדצמבר צל של 143 מ'.</p>
+      <p className="insight"><mark>בחורף הצל יוצא מגבולות המתחם.</mark> מגדל של 94 מ' מטיל בצהרי 21 בדצמבר צל של 136 מ'.</p>
       <div className="stats">
         <div><b>{sun.altitude > 0 ? `${sun.altitude.toFixed(0)}°` : 'לילה'}</b>גובה השמש</div>
         <div><b>{sun.altitude > 0 ? dirs[Math.round(sun.bearing / 45) % 8] : ''}</b>כיוון השמש</div>
-        <div><b>{sun.altitude > 1 ? `${Math.round(99 / sun.tan).toLocaleString('he')} מ'` : ''}</b>צל של 99 מ'</div>
+        <div><b>{sun.altitude > 1 ? `${Math.round(94.09 / sun.tan).toLocaleString('he')} מ'` : ''}</b>צל של 94 מ'</div>
         <div><b>{hourLabel(s.hour)}</b>{dateLabel(s.day)}</div>
       </div>
       <h4>שמש ישירה בגינה, תא שטח 501</h4>
@@ -265,6 +265,7 @@ function HomeNew() {
   return (
     <>
       <p className="insight"><mark>הדירות כאן הן מתוכניות הבניינים.</mark> בוחרים בניין, קומה ודירה, ורואים את השמש שלה.</p>
+      <button id="apt-mine" type="button" className="act" onClick={() => { const m = towers.find((t) => t.lot === '103'); if (m) pick(m.id, 5, 'A4-2T') }}>הדירה שלי: בניין 103, קומה 5</button>
       <div className="pick">
         <label htmlFor="apt-b">בניין</label>
         <select id="apt-b" value={b?.real ? b.id : ''} onChange={(e) => pick(Number(e.target.value))}>
@@ -310,7 +311,7 @@ function HomeNew() {
               ))}</tbody>
             </table>
           ) : <p className="hint">בבניין הזה לא סומנו דירות תמורה בתוכניות.</p>) : <p className="hint">מדרג את דירות התמורה.</p>}
-          <p className="note"><b>עובדה:</b> קו המתאר, מיקום הדירות והטיפוסים מתוכניות הבניינים, ושטח המכר מטבלת הדירות המוצעות. <b>הערכה:</b> {b.real!.how.startsWith('הערכה') ? 'מיקום הבניין הזה בתוך המגרש משוער, כי הגיליון משותף לשני הבניינים. ' : ''}דירות התמורה סומנו לפי טבלת הדירות המוצעות: האות T בשם הטיפוס, והדירות שרשומות בה לבעלי הקרקע. גובה הקומה מחלוקה שווה של גובה הבניין, כי אין עדיין חתך.</p>
+          <p className="note"><b>עובדה:</b> קו המתאר, מיקום הדירות והטיפוסים מתוכניות הבניינים, ושטח המכר מטבלת הדירות המוצעות. <b>הערכה:</b> דירות התמורה סומנו לפי טבלת הדירות המוצעות: האות T בשם הטיפוס, והדירות שרשומות בה לבעלי הקרקע. השמש נבדקת בנקודה אחת בכל חזית, בגובה 1.5 מ' מעל רצפת הקומה שבחתך.</p>
         </>
       ) : <p className="hint">בוחרים בניין ברשימה, או לוחצים עליו במודל.</p>}
     </>

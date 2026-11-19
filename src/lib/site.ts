@@ -7,7 +7,7 @@ export type Pt = [number, number]
 export interface Rights { floors: number; basements: number; height: number; units: number; coverage: number; main: number; service: number }
 export interface Lot { num: string; use: string; code: number; area: number; rings: Pt[][]; rights: Rights | null }
 export interface Unit { key: string; type: string; at: Pt; tmura: boolean; area: number | null }
-export interface Real { plan: string; how: string; base: number; top: number; floorArea: number; floors: { floor: number; apts: Unit[] }[] }
+export interface Real { plan: string; how: string; base: number; top: number; levels: Record<string, number>; roof: number; floorArea: number; floors: { floor: number; apts: Unit[] }[] }
 export interface Building { id: number; kind: 'tower' | 'old' | 'ctx'; name: string; pts: Pt[]; h: number; floors: number; lot?: string; real?: Real }
 export interface Facade { key: string; name: string; bearing: number; nx: number; ny: number; at: Pt; length: number }
 
@@ -53,7 +53,7 @@ const open = (pts: Pt[]) => (pts.length > 1 && pts[0][0] === pts[pts.length - 1]
 
 const lotOf = (p: Pt) => lots.find((l) => l.rights && inside(p, l.rings[0]))
 
-const planned = rawBuildings as unknown as Record<string, { plan: string; how: string; base: number; floor_area: number; pts: Pt[]; floors: { floor: number; apts: Unit[] }[] }>
+const planned = rawBuildings as unknown as Record<string, { plan: string; how: string; base: number; h: number; roof: number; levels: Record<string, number>; floor_area: number; pts: Pt[]; floors: { floor: number; apts: Unit[] }[] }>
 
 let nextId = 1
 // המגדלים: המעטפת המרבית שבתוך קו הבניין, בגובה שבטבלה 5. תוכניות הבניינים יחליפו אותה.
@@ -63,8 +63,8 @@ export const towers: Building[] = d.lines
     const env = open(l.pts), lot = lotOf(centroid(env))!
     // כשיש תוכנית בניין, קו המתאר האמיתי של הקומה הטיפוסית מחליף את מעטפת קו הבניין.
     const plan = planned[lot.num]
-    const real: Real | undefined = plan && { plan: plan.plan, how: plan.how, base: plan.base, top: Math.max(...plan.floors.map((f) => f.floor)), floorArea: plan.floor_area, floors: plan.floors }
-    return { id: nextId++, kind: 'tower' as const, name: lot.num === '401' ? 'בית הכנסת, תא 401' : `בניין ${lot.num}`, pts: plan ? plan.pts : env, h: lot.rights!.height, floors: lot.rights!.floors, lot: lot.num, real }
+    const real: Real | undefined = plan && { plan: plan.plan, how: plan.how, base: plan.base, top: Math.max(...plan.floors.map((f) => f.floor)), floorArea: plan.floor_area, floors: plan.floors, levels: plan.levels, roof: plan.roof }
+    return { id: nextId++, kind: 'tower' as const, name: lot.num === '401' ? 'בית הכנסת, תא 401' : `בניין ${lot.num}`, pts: plan ? plan.pts : env, h: plan ? plan.h : lot.rights!.height, floors: lot.rights!.floors, lot: lot.num, real }
   })
   .sort((a, b) => a.lot!.localeCompare(b.lot!))
 
@@ -104,8 +104,8 @@ export function facadesOf(b: Building): Facade[] {
 }
 
 /** גובה אמצע הקומה מעל הקרקע. הערכה: הגובה הכולל מחולק שווה בין הקומות. */
-export const floorZ = (b: Building, floor: number) =>
-  b.real ? (b.h * (floor - 1 + b.real.base + 0.5)) / (b.real.top + b.real.base + 1) : ((floor - 0.5) * b.h) / b.floors
+/** גובה החלון מעל הקרקע: מפלס הקומה מהחתך ועוד 1.5 מטר. בלי חתך: חלוקה שווה של הגובה. */
+export const floorZ = (b: Building, floor: number) => (b.real ? (b.real.levels[String(floor)] ?? 0) + 1.5 : ((floor - 0.5) * b.h) / b.floors)
 
 /** החזיתות שדירה פונה אליהן: הכיוונים שבהם היא קרובה לקצה הבניין, ונקודה על הקיר החיצון בכל אחד. */
 export function unitFaces(b: Building, at: Pt): Facade[] {

@@ -209,6 +209,45 @@ def fit_inside(foot, num):
                 best = (float(s[i]), float(deg), base + sh[i], mirror)
     return best
 
+# מפלסי הקומות במטרים מעל הכניסה הקובעת, מחתך 2-2 בגיליונות ההיתר (עובדה).
+# first: מפלס קומה 1. step: גובה קומה. special: קומות שחורגות מהמרווח. parapet: ראש מעקה הגג, הגובה שמטיל צל.
+SECTIONS = {
+    "A": dict(first=7.50, step=3.15, special={}, roof=92.73, parapet=94.09),
+    "B": dict(first=7.50, step=3.15, special={19: 64.38}, roof=67.70, parapet=69.05),
+    "C": dict(first=3.50, step=3.15, special={0: 0.20, 9: 28.78}, roof=32.01, parapet=33.36),
+}
+# בניין 103 הוא תמונת ראי של 102 (כך בתוכניות הקומות שבגיליון ההיתר של 103, וכך בכיווני הדירות שבטבלה).
+# הסיבוב והמרכז נמדדו בתוכנית ההעמדה 1:500 שבאותו גיליון.
+SITE_103 = dict(rot=-40.5, centroid=(-43.31, 32.86))
+
+def finish(out):
+    """משלים את הפלט: מפלסים וגובה מהחתכים, ו-103 כהעתק מדויק של 102 לפי תוכנית ההעמדה."""
+    if "102" in out:
+        src = out["102"]
+        n = len(src["pts"])
+        cx, cy = sum(q[0] for q in src["pts"]) / n, sum(q[1] for q in src["pts"]) / n
+        a = math.radians(SITE_103["rot"])
+        a0 = math.radians(src["rotation"])
+        ux, uy = -math.sin(a0), math.cos(a0)  # ציר הגיליון של 102, שסביבו משקפים
+        def mv(q):
+            x, y = q[0] - cx, q[1] - cy
+            k = 2 * (x * ux + y * uy)
+            x, y = k * ux - x, k * uy - y
+            return [round(x * math.cos(a) - y * math.sin(a) + SITE_103["centroid"][0], 2), round(x * math.sin(a) + y * math.cos(a) + SITE_103["centroid"][1], 2)]
+        b = json.loads(json.dumps(src))
+        b["pts"] = [mv(q) for q in b["pts"]]
+        for f in b["floors"]:
+            for u in f["apts"]:
+                u["at"] = mv(u["at"])
+        b["how"] = "מיקום לפי תוכנית ההעמדה שבגיליון ההיתר"
+        b["rotation"] = round((src["rotation"] + SITE_103["rot"]) % 360, 2)
+        b["mirror"] = True
+        out["103"] = b
+    for v in out.values():
+        s = SECTIONS[v["plan"]]
+        v["levels"] = {str(f["floor"]): s["special"].get(f["floor"], round(s["first"] + s["step"] * (f["floor"] - 1), 2)) for f in v["floors"]}
+        v["roof"], v["h"] = s["roof"], s["parapet"]
+
 out = {}
 for key, cfg in PLANS.items():
     if os.environ.get("ONLY") and key not in os.environ["ONLY"]:
@@ -250,6 +289,7 @@ for key, cfg in PLANS.items():
                         pts=[[round(float(x), 2), round(float(y), 2)] for x, y in pts], floors=apts)
         print(num, key, "| שטח קומה %.0f מ\"ר | זווית %.2f | ציון %.3f | %s | דירות %s" % (area, deg, score, how, sum(len(f["apts"]) for f in apts)))
 
+finish(out)
 if os.environ.get("ONLY"):
     prev = json.loads((ROOT / "data" / "buildings.json").read_text(encoding="utf-8")) if (ROOT / "data" / "buildings.json").exists() else {}
     out = {**prev, **out}
