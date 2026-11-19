@@ -34,7 +34,7 @@ const Num = ({ id, label, value, set, step = 1, unit }: { id: string; label: str
 export default function Fair() {
   const [oldPpm, setOldPpm] = useState(23600)
   const [aOld, setAOld] = useState(50), [aNew, setANew] = useState(80), [aFloor, setAFloor] = useState(20)
-  const [bOld, setBOld] = useState(80), [bNew, setBNew] = useState(102.2), [bFloor, setBFloor] = useState(5)
+  const [bOld, setBOld] = useState(80), [bNew, setBNew] = useState(110), [bFloor, setBFloor] = useState(5)
   const [base, setBase] = useState(26000), [perFloor, setPerFloor] = useState(0.5), [small, setSmall] = useState(sizeFromData)
   // שווי דירה חדשה: מחיר בסיס בקומה 5, תוספת לכל קומה מעליה, ותוספת למ"ר בדירה קטנה (עד 85 מ"ר)
   const value = (area: number, floor: number) => area * base * (1 + (perFloor * (floor - 5)) / 100) * (area <= 85 ? 1 + small / 100 : 1)
@@ -131,7 +131,7 @@ export default function Fair() {
           <p>הגורם הראשי הוא גודל מינימלי לדירה חדשה, ואחריו הקומה והמחיר הגבוה למ"ר של דירות קטנות.</p></div>
         <div className="asm"><h3>מה לא ידוע</h3>
           <p>שטחי הדירות הישנות של שאר הבעלים, ולכן אי אפשר לחשב את יחס ההחלפה האמיתי של כל אחד. הדוגמה כאן היא מודל, לא נתוני הפרויקט.</p>
-          <p>לפי מסמך השמאי, הניקוד קובע רק את סדר בחירת הדירות. איך נקבע השטח שכל בעלים מקבל, לא מופיע במסמכים שקראתי.</p></div>
+          <p><b>עובדה מההסכם, סעיף 9.1:</b> כל בעלים מקבל את שטח דירתו ועוד 30 מ"ר, ולפחות 80 מ"ר. תוספת קבועה במטרים היא הסיבה שבעל דירה קטנה מקבל יותר לכל מ"ר ישן.</p></div>
       </section>
     </div>
   )

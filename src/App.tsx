@@ -4,6 +4,7 @@ import { KEY_DAYS, dateLabel, hourLabel, sunAt } from './lib/sun.ts'
 import Panel from './ui/Panel.tsx'
 import Value from './ui/Value.tsx'
 import Fair from './ui/Fair.tsx'
+import Claim from './ui/Claim.tsx'
 
 const Scene = lazy(() => import('./scene/Scene.tsx'))
 
@@ -12,7 +13,7 @@ declare module 'react' {
   namespace JSX { interface IntrinsicElements { 'ai-menu': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { chat?: string } } }
 }
 
-const TABS: [Tab, string][] = [['site', 'המתחם'], ['sun', 'שמש וצל'], ['wind', 'רוח'], ['home', 'הדירה שלי'], ['value', 'שווי ותמורה'], ['fair', 'הוגנות התמורה']]
+const TABS: [Tab, string][] = [['site', 'המתחם'], ['sun', 'שמש וצל'], ['wind', 'רוח'], ['home', 'הדירה שלי'], ['value', 'שווי ותמורה'], ['fair', 'הוגנות התמורה'], ['claim', 'ההסכם והטענה']]
 
 export default function App() {
   const s = useStore()
@@ -37,7 +38,7 @@ export default function App() {
         <ai-menu chat="https://claude.ai/code" />
       </header>
 
-      {s.tab === 'value' ? <main className="report"><Value /></main> : s.tab === 'fair' ? <main className="report"><Fair /></main> : <main className="stage">
+      {s.tab === 'value' ? <main className="report"><Value /></main> : s.tab === 'fair' ? <main className="report"><Fair /></main> : s.tab === 'claim' ? <main className="report"><Claim /></main> : <main className="stage">
         <section className="view" aria-label="המודל">
           <Suspense fallback={<div className="loading">טוען את המודל</div>}><Scene /></Suspense>
 

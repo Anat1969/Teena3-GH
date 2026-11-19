@@ -148,3 +148,6 @@ textarea{resize:vertical;line-height:1.5}
 .rates{margin-top:.6em;background:var(--bg)}
 .fair .bar-row{grid-template-columns:13em 1fr 12em}
 .tabs{flex-wrap:wrap}
+.bar-row i.bad{background:var(--bad)}
+.claim .bar-row{grid-template-columns:17em 1fr 15em}
+.claim .crit td:first-child{min-width:9em}

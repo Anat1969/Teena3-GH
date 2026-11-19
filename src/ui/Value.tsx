@@ -10,7 +10,7 @@ const nis = (x: number) => Math.round(x).toLocaleString('he')
 const mil = (x: number) => `${(x / 1e6).toLocaleString('he', { maximumFractionDigits: 2, minimumFractionDigits: 2 })} מיליון`
 const median = (a: number[]) => { const s = [...a].sort((x, y) => x - y); return s.length ? (s[(s.length - 1) >> 1] + s[s.length >> 1]) / 2 : 0 }
 const dmy = (d: string) => d.split('-').reverse().join('.')
-const RATES: [string, number][] = [['תשואת שכירות ברחובות', 2.45], ['ההנחה ההתחלתית', 3], ['ריבית משכנתא צמודה, בקירוב', 4], ['תשואה עם סיכון עיכוב', 6]]
+const RATES: [string, number][] = [['בלי היוון: היזם משלם דמי שכירות', 0], ['תשואת שכירות ברחובות', 2.45], ['ההנחה ההתחלתית', 3], ['ריבית משכנתא צמודה, בקירוב', 4], ['תשואה עם סיכון עיכוב', 6]]
 const GROUPS: Record<Deal['group'], string> = { new: 'בניין חדש מקבלן: דרך יבנה 67', tower: 'מגדל צמוד למתחם: ציפורה טוב 3', firsthand: 'קומות גבוהות, כתובת לא דווחה', old: 'בניינים ותיקים בשכונה' }
 
 // הבסיס לדירת התמורה: בניינים חדשים וגבוהים, 4 חדרים ומעלה, מנובמבר 2025.
@@ -43,7 +43,7 @@ export default function Value() {
   const [newArea, setNewArea] = useState(102.2)
   const [newPpm, setNewPpm] = useState(Math.round(median(newBase.map((d) => d.ppm)) / 100) * 100)
   const [pNew, setPNew] = useState(5), [pFloor, setPFloor] = useState(-3), [pDir, setPDir] = useState(1)
-  const [years, setYears] = useState(4), [rate, setRate] = useState(3), [rent, setRent] = useState(0)
+  const [years, setYears] = useState(4), [rate, setRate] = useState(0), [rent, setRent] = useState(0)
   const sun = useMemo(() => {
     const b = towers.find((t) => t.lot === myApt.lot), u = b?.real?.floors.find((f) => f.floor === myApt.floor)?.apts.find((x) => x.type === myApt.type)
     return b && u ? unitReport(b, myApt.floor, u) : null
@@ -119,11 +119,11 @@ export default function Value() {
           <p className="res">הדירה החדשה בכסף של היום: {nis(vNew)} ÷ {(1 + r).toFixed(3)}<sup>{years}</sup>{rent > 0 ? <> + {nis(rentNow)} שכירות</> : null} = <b>{nis(vNewNow)} ש"ח</b></p>
           <table className="mini rates">
             <thead><tr><th>איזו ריבית</th><th>%</th><th>שווי היום</th><th>פער</th></tr></thead>
-            <tbody>{RATES.map(([name, v]) => { const now = vNew / (1 + v / 100) ** years + rent * 12 * ((1 - (1 + v / 100) ** -years) / (v / 100)); return (
+            <tbody>{RATES.map(([name, v]) => { const now = vNew / (1 + v / 100) ** years + rent * 12 * (v > 0 ? (1 - (1 + v / 100) ** -years) / (v / 100) : years); return (
               <tr key={name} className={rate === v ? 'on' : 'row'} onClick={() => setRate(v)}><td><b>{name}</b></td><td>{v}</td><td>{mil(now)}</td><td>{mil(now - vOld)}</td></tr>
             ) })}</tbody>
           </table>
-          <p className="note">לחיצה על שורה בוחרת את הריבית. <b>עובדה:</b> תשואת השכירות ברחובות, 2.45%, מאתר הנדל"ן הממשלתי. <b>הערכה:</b> שאר הריביות הן סדרי גודל. אם היזם משלם דמי שכירות מלאים, ההמתנה כמעט אינה עולה כסף.</p>
+          <p className="note">לחיצה על שורה בוחרת את הריבית. <b>עובדה:</b> תשואת השכירות ברחובות, 2.45%, מאתר הנדל"ן הממשלתי. <b>עובדה:</b> לפי ההסכם היזם משלם דמי שכירות בתקופת הבנייה, ולכן ברירת המחדל היא בלי היוון. <b>הערכה:</b> שאר הריביות הן סדרי גודל.</p>
 
           <h2>4. המסקנה</h2>
           <ol className="verdict">
