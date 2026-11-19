@@ -21,10 +21,13 @@ def kind_of(fill):
     return None
 CFG = {  # עמודי התוכנית והקומות שכל עמוד מייצג, כמו ב-build-buildings.py
     "A": dict(file="building-A-102-103.pdf", scale=125, lots=["102", "103"],
-              pages={3: list(range(1, 5)) + list(range(21, 27)), 4: [5], 5: [6], 6: list(range(7, 21)), 7: [27]}),
+              pages={1: [0], 2: [0.5], 3: list(range(1, 5)) + list(range(21, 27)), 4: [5], 5: [6], 6: list(range(7, 21)), 7: [27]},
+              first=7.50, special={0: 0.0, 0.5: 4.0}, roof=92.73, parapet=94.09),
     "B": dict(file="building-B-101.pdf", scale=100, lots=["101"],
-              pages={3: [1, 2, 3, 17, 18], 4: [4], 5: [5, 8, 9], 6: [6], 7: [7], 8: [10, 13, 15, 16], 9: [11], 10: [12], 11: [14], 12: [19]}),
-    "C": dict(file="building-C-104.pdf", scale=100, lots=["104"], pages={1: [0], 2: [1, 4, 5, 6, 7, 8], 3: [2], 4: [3], 5: [9]}),
+              pages={1: [0], 2: [0.5], 3: [1, 2, 3, 17, 18], 4: [4], 5: [5, 8, 9], 6: [6], 7: [7], 8: [10, 13, 15, 16], 9: [11], 10: [12], 11: [14], 12: [19]},
+              first=7.50, special={0: 0.0, 0.5: 4.0, 19: 64.38}, roof=67.70, parapet=69.05),
+    "C": dict(file="building-C-104.pdf", scale=100, lots=["104"], pages={1: [0], 2: [1, 4, 5, 6, 7, 8], 3: [2], 4: [3], 5: [9]},
+              first=3.50, special={0: 0.20, 9: 28.78}, roof=32.01, parapet=33.36),
 }
 CORE = ("מבואה", "מדרגות", "מעלית", "לובי")
 b = json.loads((ROOT / "data" / "buildings.json").read_text(encoding="utf-8"))
@@ -147,7 +150,7 @@ for key, cfg in CFG.items():
         pages[str(pg)] = dict(body=[[round(x, 1), round(y, 1)] for x, y in body.exterior.coords[:-1]], balconies=balc,
                               openings=find_openings(body, walls["concrete"] + walls["block"], mpp), floors=floors, bbox=[round(v, 1) for v in (x0, y0, x1, y1)], floor=export([floor], 0.3)[0]["pts"],
                               walls={k2: export(v) for k2, v in walls.items()}, core=core)
-        if labels0 is None:
+        if labels0 is None and floors[0] >= 1:
             labels0 = (labels, floors[0])
     # העתקה מהגיליון (נקודות PDF) אל המתחם, לכל תא שטח: site = [x, y, 1] @ M
     def affine(lot, labels, floor):
@@ -165,6 +168,9 @@ for key, cfg in CFG.items():
             M2, *_ = np.linalg.lstsq(np.c_[src, np.ones(len(src))], dst, rcond=None)
             M = np.c_[M, [0, 0, 1]] @ M2
         return [[round(float(v), 6) for v in row] for row in M]
-    data = dict(pages=pages, lots={lot: affine(lot, *labels0) for lot in cfg["lots"]})
+    fl = sorted(f for v in cfg["pages"].values() for f in v)
+    z = {f: cfg["special"].get(f, round(cfg["first"] + 3.15 * (f - 1), 2)) for f in fl}
+    levels = {str(f): [z[f], round((z[fl[i + 1]] if i + 1 < len(fl) else cfg["roof"]) - z[f], 2)] for i, f in enumerate(fl)}
+    data = dict(levels=levels, roof=cfg["roof"], parapet=cfg["parapet"], pages=pages, lots={lot: affine(lot, *labels0) for lot in cfg["lots"]})
     (OUT / f"{key}.json").write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(key, {pg: (len(v["walls"]["concrete"]), len(v["walls"]["block"]), [c["name"] for c in v["core"]]) for pg, v in pages.items()})

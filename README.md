@@ -56,6 +56,12 @@ python3 tools/build-buildings.py
 - `tools/build-floors.py`: בונה את `public/floors/` לכל הקומות בכל הבניינים.
 - `tools/build-apartment.py`: בונה את `data/apartment.json`, קו המתאר והחדרים של הדירה של ענת.
 
+## מודל BIM
+
+- בסצנה (`BimModel` ב־`src/scene/Scene.tsx`) כל קומה בנויה מאלמנטים מתוך התוכנית שלה: תקרה, קירות בטון ובלוק, מילוי מעל ומתחת לפתחים, זיגוג, מרפסות ומעקות. גיאומטריה אחת לכל תוכנית, משוכפלת לקומות שהיא מייצגת.
+- `tools/build-ifc.py`: מייצא כל בניין ל־IFC4 (`public/ifc/<תא>.ifc`) עם IfcBuildingStorey, IfcWall, IfcSlab, IfcWindow ו־IfcRailing, ומחשב כמויות ל־`data/quantities.json`.
+- מה חסר לרמת Revit מלאה: דלתות, מדרגות ומעליות כאלמנטים, עמודים וקורות, מרתפים, חיפויים וחומרים, וחדרים (IfcSpace) לכל דירה.
+
 ## חזיתות
 
 - `tools/build-facades.py <תיקיית קובצי ההיתר>`: חותך את ארבע החזיתות של כל בניין מגיליונות ההיתר, ושומר ב־`public/facades/` וב־`data/facades.json`.

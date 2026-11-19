@@ -177,6 +177,94 @@ function FacadeDetail({ b, top }: { b: Building; top: number }) {
   )
 }
 
+// ---------- מודל BIM: אלמנטים אמיתיים לכל קומה ----------
+const M_CONC = new THREE.MeshLambertMaterial({ color: '#E9E6DF' })
+const M_BLOCK = new THREE.MeshLambertMaterial({ color: '#F5F3EE' })
+const M_INFILL = new THREE.MeshLambertMaterial({ color: '#D9D5CC' })
+const M_SLAB = new THREE.MeshLambertMaterial({ color: '#C9C5BB' })
+const SLAB_T = 0.2
+/** אינסטנסים של גיאומטריה אחת בכמה קומות. scaleY מותח את הקירות לגובה הקומה. */
+function Storeys({ g, mat, at, cast }: { g: THREE.BufferGeometry; mat: THREE.Material; at: { y: number; s: number }[]; cast?: boolean }) {
+  const ref = useRef<THREE.InstancedMesh>(null)
+  useEffect(() => {
+    const m = new THREE.Matrix4()
+    at.forEach((a, i) => { m.compose(new THREE.Vector3(0, a.y, 0), new THREE.Quaternion(), new THREE.Vector3(1, a.s, 1)); ref.current!.setMatrixAt(i, m) })
+    ref.current!.instanceMatrix.needsUpdate = true
+  }, [at])
+  if (!at.length) return null
+  return <instancedMesh key={at.length} ref={ref} args={[g, mat, at.length]} castShadow={cast} receiveShadow frustumCulled={false} />
+}
+/** הבניין כאוסף אלמנטים: בכל קומה תקרה, קירות בטון ובלוק, מילוי מתחת ומעל לפתחים, זיגוג ומעקות. הכול מתוכנית אותה קומה. */
+function BimModel({ b, top }: { b: Building; top: number }) {
+  const [file, setFile] = useState<FloorFile | null>(null)
+  useEffect(() => { let live = true; loadFloors(b.real!.plan).then((f) => live && setFile(f)); return () => { live = false } }, [b])
+  const parts = useMemo(() => {
+    if (!file) return null
+    const M = file.lots[b.lot!]
+    const to = ([x, y]: Pt): Pt => [x * M[0][0] + y * M[1][0] + M[2][0], x * M[0][1] + y * M[1][1] + M[2][1]]
+    const ex = (shapes: THREE.Shape[], depth: number) => { const g = new THREE.ExtrudeGeometry(shapes, { depth, bevelEnabled: false }); g.rotateX(-Math.PI / 2); return g }
+    const boxes = (segs: { a: Pt; c: Pt; y0: number; y1: number; t: number }[]) => {
+      // קופסה דקה לאורך קטע: קיר מילוי או זיגוג
+      const pos: number[] = []
+      for (const s of segs) {
+        const len = Math.hypot(s.c[0] - s.a[0], s.c[1] - s.a[1]), nx = ((s.c[1] - s.a[1]) / len) * s.t / 2, ny = (-(s.c[0] - s.a[0]) / len) * s.t / 2
+        const P = [[s.a[0] + nx, s.a[1] + ny], [s.c[0] + nx, s.c[1] + ny], [s.c[0] - nx, s.c[1] - ny], [s.a[0] - nx, s.a[1] - ny]]
+        const v = (i: number, y: number) => [P[i][0], y, -P[i][1]]
+        const q = (i: number, j: number, k: number, l: number, ya: number, yb: number, yc: number, yd: number) => pos.push(...v(i, ya), ...v(j, yb), ...v(k, yc), ...v(i, ya), ...v(k, yc), ...v(l, yd))
+        for (let i = 0; i < 4; i++) { const j = (i + 1) % 4; pos.push(...v(i, s.y0), ...v(j, s.y0), ...v(j, s.y1), ...v(i, s.y0), ...v(j, s.y1), ...v(i, s.y1)) }
+        q(0, 1, 2, 3, s.y1, s.y1, s.y1, s.y1); q(3, 2, 1, 0, s.y0, s.y0, s.y0, s.y0)
+      }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.computeVertexNormals(); return g
+    }
+    return Object.values(file.pages).map((pg) => {
+      const shape = (w: Poly) => shapeOf(w.pts.map(to), w.holes.map((h) => h.map(to)))
+      const mid = pg.body.map(to).reduce((s, q, _, arr) => [s[0] + q[0] / arr.length, s[1] + q[1] / arr.length] as Pt, [0, 0] as Pt)
+      const op = pg.openings.map((o) => ({ a: to([o[0], o[1]]), c: to([o[2], o[3]]) })).filter((o) => Math.hypot(o.c[0] - o.a[0], o.c[1] - o.a[1]) > 0.6)
+      const wide = (o: { a: Pt; c: Pt }) => Math.hypot(o.c[0] - o.a[0], o.c[1] - o.a[1]) > 2.2
+      // בגובה יחסי 0 עד 1 מגובה הקיר: אדן עד 0.34 בחלון, זיגוג עד 0.8, ומעליו משקוף
+      const infill = boxes(op.flatMap((o) => [...(wide(o) ? [] : [{ ...o, y0: 0, y1: 0.34, t: 0.2 }]), { ...o, y0: 0.8, y1: 1, t: 0.2 }]))
+      const glass = boxes(op.map((o) => ({ ...o, y0: wide(o) ? 0.02 : 0.34, y1: 0.8, t: 0.05 })))
+      const slabShapes = [shapeOf(pg.floor.map(to)), ...pg.balconies.map((r) => shapeOf(([[r[0], r[1]], [r[2], r[1]], [r[2], r[3]], [r[0], r[3]]] as Pt[]).map(to)))]
+      const rails = boxes(pg.balconies.flatMap((r) => {
+        const cs = ([[r[0], r[1]], [r[2], r[1]], [r[2], r[3]], [r[0], r[3]]] as Pt[]).map(to)
+        // מעקה רק בצלעות שפונות החוצה מגוף הבניין
+        return cs.map((q, i) => ({ a: q, c: cs[(i + 1) % 4] })).filter((s) => { const mx = (s.a[0] + s.c[0]) / 2, my = (s.a[1] + s.c[1]) / 2, cx = cs.reduce((u, q) => u + q[0], 0) / 4, cy = cs.reduce((u, q) => u + q[1], 0) / 4; return (mx - cx) * (cx - mid[0]) + (my - cy) * (cy - mid[1]) > 0 }).map((s) => ({ ...s, y0: 0, y1: 1.05, t: 0.04 }))
+      }))
+      const slab = ex(slabShapes, SLAB_T); slab.translate(0, -SLAB_T, 0)
+      const lv = pg.floors.map((f) => file.levels[String(f)]).filter((l) => l && l[0] + 1 <= top)
+      return { key: pg.floors.join(','), concrete: ex(pg.walls.concrete.map(shape), 1), block: ex(pg.walls.block.map(shape), 1), infill, glass, rails, slab,
+        walls: lv.map((l) => ({ y: l[0], s: l[1] - SLAB_T })), flat: lv.map((l) => ({ y: l[0], s: 1 })) }
+    })
+  }, [file, b, top])
+  const roof = useMemo(() => {
+    if (!file || top < file.roof) return null
+    const M = file.lots[b.lot!], to = ([x, y]: Pt): Pt => [x * M[0][0] + y * M[1][0] + M[2][0], x * M[0][1] + y * M[1][1] + M[2][1]]
+    const typical = Object.values(file.pages).reduce((m, p2) => (p2.floors.length > m.floors.length ? p2 : m))
+    const outer = typical.floor.map(to), cx = outer.reduce((s, q) => s + q[0], 0) / outer.length, cy = outer.reduce((s, q) => s + q[1], 0) / outer.length
+    const inner = outer.map(([x, y]) => { const d = Math.hypot(x - cx, y - cy); return [x - ((x - cx) / d) * 0.25, y - ((y - cy) / d) * 0.25] as Pt })
+    const slab = new THREE.ExtrudeGeometry(shapeOf(outer), { depth: SLAB_T, bevelEnabled: false }); slab.rotateX(-Math.PI / 2); slab.translate(0, file.roof - SLAB_T, 0)
+    const par = new THREE.ExtrudeGeometry(shapeOf(outer, [inner]), { depth: file.parapet - file.roof, bevelEnabled: false }); par.rotateX(-Math.PI / 2); par.translate(0, file.roof, 0)
+    return { slab, par }
+  }, [file, b, top])
+  if (!parts) return null
+  return (
+    <group>
+      {parts.map((p2) => (
+        <group key={p2.key}>
+          <Storeys g={p2.slab} mat={M_SLAB} at={p2.flat} />
+          <Storeys g={p2.concrete} mat={M_CONC} at={p2.walls} />
+          <Storeys g={p2.block} mat={M_BLOCK} at={p2.walls} />
+          <Storeys g={p2.infill} mat={M_INFILL} at={p2.walls} />
+          <Storeys g={p2.glass} mat={GLASS} at={p2.walls} />
+          <Storeys g={p2.rails} mat={RAIL} at={p2.flat} />
+        </group>
+      ))}
+      {roof && <mesh geometry={roof.slab} material={M_SLAB} receiveShadow />}
+      {roof && <mesh geometry={roof.par} material={M_CONC} receiveShadow />}
+    </group>
+  )
+}
+
 // ---------- בניינים ----------
 function Context() {
   const g = useMemo(() => mergeGeometries(context.map((b) => prism(b.pts, b.h)))!, [])
@@ -187,12 +275,13 @@ function Block({ b }: { b: Building }) {
   const mode = useStore((s) => s.mode), tab = useStore((s) => s.tab), selected = useStore((s) => s.selected), apt = useStore((s) => s.apt[s.mode])
   const set = useStore((s) => s.set), setApt = useStore((s) => s.setApt)
   const [hover, setHover] = useState(false)
-  const plan = useStore((s) => s.plan), showFacades = useStore((s) => s.facades), detail = useStore((s) => s.detail)
+  const plan = useStore((s) => s.plan), showFacades = useStore((s) => s.facades), detail = useStore((s) => s.detail), bim = useStore((s) => s.bim)
   const cut = plan && tab === 'home' && mode === 'future' && !!b.real && apt?.id === b.id
   const top = cut ? b.real!.levels[String(apt!.floor)] : b.h
   const g = useMemo(() => prism(b.pts, top), [b, top])
-  const skin = useMemo(() => (b.real && showFacades && !detail ? facadeGeometry(b, top) : null), [b, top, showFacades, detail])
-  const deep = !!b.real && showFacades && detail
+  const useBim = !!b.real && bim
+  const skin = useMemo(() => (b.real && !useBim && showFacades && !detail ? facadeGeometry(b, top) : null), [b, top, showFacades, detail, useBim])
+  const deep = !!b.real && !useBim && showFacades && detail
   const roof = useMemo(() => (skin ? flat(b.pts, top) : null), [b, top, skin])
   const lines = useMemo(() => {
     const pos: number[] = []
@@ -227,12 +316,13 @@ function Block({ b }: { b: Building }) {
           if (tab === 'home') { if (b.h > 8 && apt?.id !== b.id) { const fl = b.real ? b.real.floors[Math.floor(b.real.floors.length / 2)] : null; setApt({ id: b.id, floor: fl ? fl.floor : Math.ceil(b.floors / 2), facade: facadesOf(b)[0].key, unit: fl?.apts[0]?.key }) } }
           else set({ selected: b.id })
         }}>
-        <meshLambertMaterial color={color} transparent={!!skin || deep} opacity={skin || deep ? 0 : 1} depthWrite={!(skin || deep)} />
+        <meshLambertMaterial color={color} transparent={!!skin || deep || useBim} opacity={skin || deep || useBim ? 0 : 1} depthWrite={!(skin || deep || useBim)} />
       </mesh>
+      {useBim && <BimModel b={b} top={top} />}
       {deep && <FacadeDetail b={b} top={top} />}
       {skin && <mesh geometry={skin.g} material={skin.mats} receiveShadow />}
       {skin && roof && <mesh geometry={roof} receiveShadow><meshLambertMaterial color={mine && !cut ? '#FFE9A8' : '#E9E6DD'} /></mesh>}
-      {!skin && !deep && <lineSegments geometry={lines}><lineBasicMaterial color={INK} transparent opacity={b.kind === 'tower' ? 0.28 : 0.4} /></lineSegments>}
+      {!skin && !deep && !useBim && <lineSegments geometry={lines}><lineBasicMaterial color={INK} transparent opacity={b.kind === 'tower' ? 0.28 : 0.4} /></lineSegments>}
       {cut && <lineSegments geometry={ghost}><lineBasicMaterial color={INK} transparent opacity={0.1} /></lineSegments>}
       {b.kind === 'tower' && !cut && (
         <Html position={[b.pts.reduce((s, p) => s + p[0], 0) / b.pts.length, b.h + 6, -b.pts.reduce((s, p) => s + p[1], 0) / b.pts.length]} center zIndexRange={[5, 0]} style={{ pointerEvents: 'none' }}>
@@ -411,7 +501,7 @@ function AptMarker() {
 // ---------- חתך בקומה ----------
 type Poly = { pts: Pt[]; holes: Pt[][] }
 interface FloorPage { body: Pt[]; balconies: number[][]; openings: number[][]; floors: number[]; bbox: [number, number, number, number]; floor: Pt[]; walls: { concrete: Poly[]; block: Poly[] }; core: { name: string; at: Pt }[] }
-interface FloorFile { pages: Record<string, FloorPage>; lots: Record<string, number[][]> }
+interface FloorFile { levels: Record<string, [number, number]>; roof: number; parapet: number; pages: Record<string, FloorPage>; lots: Record<string, number[][]> }
 const floorCache = new Map<string, Promise<FloorFile>>()
 const loadFloors = (plan: string) => {
   if (!floorCache.has(plan)) floorCache.set(plan, fetch(`/floors/${plan}.json`).then((r) => r.json()))

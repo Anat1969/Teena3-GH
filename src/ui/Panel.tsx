@@ -2,12 +2,16 @@ import { useEffect, useMemo, useState } from 'react'
 import { type Owner, type WindKey, WINDS, useStore } from '../store.ts'
 import { byId, facadesOf, lots, myApt, oldBuildings, towers, trees } from '../lib/site.ts'
 import { KEY_DAYS, dateLabel, hourLabel, sunAt } from '../lib/sun.ts'
+import rawQ from '../../data/quantities.json'
 import { aptReport, exposure, exposureWord, parkSunHours, rankTmura, unitReport } from '../lib/analysis.ts'
 
 const n1 = (x: number) => x.toLocaleString('he', { maximumFractionDigits: 1 })
 const Check = ({ id, label, on, flip }: { id: string; label: string; on: boolean; flip: () => void }) => (
   <button id={id} type="button" className="check" aria-pressed={on} onClick={flip}><i>{on ? '✓' : ''}</i>{label}</button>
 )
+
+const quantities = rawQ as unknown as Record<string, { storeys: number; walls: number; concrete_m3: number; block_m3: number; slab_m2: number; balcony_m2: number; glazing_m2: number; windows: number; railing_m: number }>
+const big = (x: number) => Math.round(x).toLocaleString('he')
 
 function Site() {
   const s = useStore()
@@ -33,7 +37,24 @@ function Site() {
             <dt>צל בצהרי 21 בדצמבר</dt><dd>{Math.round(b.h / Math.tan((34.66 * Math.PI) / 180))} מ'</dd>
           </dl>
         </div>
-      ) : <p className="hint">לחיצה על בניין במודל מציגה את הנתונים שלו.</p>}
+      ) : <p className="hint">לחיצה על בניין במודל מציגה את הנתונים והכמויות שלו.</p>}
+      {b?.lot && quantities[b.lot] && (() => { const q = quantities[b.lot!]; return (
+        <div className="card">
+          <h3>כמויות מהמודל: {b.name}</h3>
+          <dl>
+            <dt>קומות במודל</dt><dd>{q.storeys}</dd>
+            <dt>אלמנטי קיר</dt><dd>{big(q.walls)}</dd>
+            <dt>קירות בטון</dt><dd>{big(q.concrete_m3)} מ"ק</dd>
+            <dt>קירות בלוק</dt><dd>{big(q.block_m3)} מ"ק</dd>
+            <dt>תקרות</dt><dd>{big(q.slab_m2)} מ"ר</dd>
+            <dt>מרפסות</dt><dd>{big(q.balcony_m2)} מ"ר</dd>
+            <dt>חלונות וויטרינות</dt><dd>{big(q.windows)}, {big(q.glazing_m2)} מ"ר זיגוג</dd>
+            <dt>מעקות</dt><dd>{big(q.railing_m)} מ' אורך</dd>
+          </dl>
+          <a className="link" href={`/ifc/${b.lot}.ifc`} download>הורדת קובץ IFC לפתיחה ב־Revit</a>
+          <p className="note"><b>הערכה:</b> הכמויות נמדדות מהאלמנטים שבמודל, מעל הקרקע בלבד, בלי מרתפים, עמודים, קורות ומדרגות. הן סדר גודל, לא כתב כמויות.</p>
+        </div>
+      ) })()}
       {future && (
         <table className="mini">
           <thead><tr><th>תא שטח</th><th>קומות</th><th>גובה</th><th>יח"ד</th></tr></thead>
@@ -45,10 +66,11 @@ function Site() {
         <Check id="l-sat" label="תצלום לוויין" on={s.sat} flip={() => s.set({ sat: !s.sat })} />
         <Check id="l-lots" label="ייעודי קרקע" on={s.lots} flip={() => s.set({ lots: !s.lots })} />
         <Check id="l-trees" label="עצים" on={s.trees} flip={() => s.set({ trees: !s.trees })} />
+        <Check id="l-bim" label="מודל BIM: אלמנטים לכל קומה" on={s.bim} flip={() => s.set({ bim: !s.bim })} />
         <Check id="l-fac" label="חזיתות מההיתר" on={s.facades} flip={() => s.set({ facades: !s.facades })} />
         <Check id="l-det" label="מרפסות ופתחים בתלת־ממד" on={s.detail} flip={() => s.set({ detail: !s.detail })} />
       </div>
-      <p className="note"><b>עובדה:</b> קו המתאר מתוכניות הבניינים, והגבהים ומפלסי הקומות מהחתכים שבגיליונות ההיתר. בניין 103 ממוקם לפי תוכנית ההעמדה. החזיתות הן שרטוטי החזית מגיליונות ההיתר, מולבשים על הבניין בהיטל ישר. המרפסות והפתחים נבנו מתוכניות הקומות: מרפסת בולטת עם מעקה זכוכית, וזכוכית בכל פתח שבין הקירות. <b>הערכה:</b> גודל המרפסות וגובה החלונות משוערים, והחזיתות של 102 הן תמונת ראי של 103. בית הכנסת מוצג כמעטפת קו הבניין.</p>
+      <p className="note"><b>עובדה:</b> קו המתאר מתוכניות הבניינים, והגבהים ומפלסי הקומות מהחתכים שבגיליונות ההיתר. בניין 103 ממוקם לפי תוכנית ההעמדה. החזיתות הן שרטוטי החזית מגיליונות ההיתר, מולבשים על הבניין בהיטל ישר. במודל ה־BIM כל קומה בנויה מהתוכנית שלה: תקרה, קירות בטון ובלוק, חלונות, מרפסות ומעקות, כולל קומת הקרקע והגלריה. <b>הערכה:</b> גובה האדן והמשקוף של החלונות אחיד ומשוער, כי החזיתות בהיתר הן סריקה ולא מדידה. חיפוי וגוונים אינם במודל, ונראים בשכבת "חזיתות מההיתר" כשמכבים את ה־BIM. בית הכנסת מוצג כמעטפת קו הבניין.</p>
       <a className="link" href="/tasrit.html" target="_blank" rel="noreferrer">התסריט המלא</a>
     </>
   )
