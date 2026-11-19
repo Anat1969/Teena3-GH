@@ -299,7 +299,7 @@ function MyApt() {
     <div className="card mine">
       <h3>הדירה שלי, לפי התוכנית</h3>
       <dl>
-        <dt>בניין</dt><dd>103, תא שטח 103</dd>
+        <dt>בניין</dt><dd>103, תא שטח 103, אושר על ידי הבעלים</dd>
         <dt>קומה</dt><dd>5, במפלס {myApt.level.toFixed(2)}+ מ'</dd>
         <dt>טיפוס</dt><dd>{myApt.type}, דירת תמורה</dd>
         <dt>שטח שמודפס בתוכנית</dt><dd>{myApt.plan_area} מ"ר</dd>

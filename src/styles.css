@@ -155,3 +155,6 @@ textarea{resize:vertical;line-height:1.5}
 .legend{list-style:none;margin:0;padding:0;display:grid;gap:.3em}
 .legend li{display:grid;grid-template-columns:1.1em 1fr auto;gap:.6em;align-items:center}
 .legend i{width:1.1em;height:1.1em;display:block}.legend b{font-weight:600}
+.paper{background:var(--bg);box-shadow:var(--sh);padding:clamp(16px,2.4vw,44px);display:grid;gap:1em}
+.paper pre{margin:0;font:inherit;font-size:1.02em;line-height:1.75;white-space:pre-wrap;text-align:right}
+.tabs button{font-size:.96em;padding-inline:.7em}
