@@ -1,0 +1,171 @@
+<title>תסריט מתחם האצ"ל</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600&display=swap">
+<style>
+/* פריסה: כפולת מגזין. התרשים המחושב הוא המוקד (יחס זהוב מול טור התסריט), ומתחתיו פס נתונים ופס אמינות. */
+:root{
+  --bg:#FFFFFF; --ink:#2E2E2B; --mute:#74736C; --line:#E8E6E0; --wash:#F6F5F1;
+  --res:#EBD3AE; --pub:#C79E78; --park:#CFE2B8; --road:#EFEDE7; --ctx:#E3E1DA; --ctxtall:#B9B6AC;
+  --shadow:#3B4A63; --tower:#2E2E2B; --tower-ink:#FFFFFF; --problem:#C4473A; --ok:#3F7D4E; --mark:#FBEFA6; --wind:#2F6FA8; --blue:#1F5FBF;
+  --f:"Heebo","Arial Hebrew",Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#191917; --ink:#ECEAE3; --mute:#A3A197; --line:#34332F; --wash:#22211F;
+  --res:#6B5636; --pub:#7A5A3C; --park:#3F5A30; --road:#2B2A27; --ctx:#33322E; --ctxtall:#55534C;
+  --shadow:#8FA6CC; --tower:#ECEAE3; --tower-ink:#191917; --problem:#E8776B; --ok:#7DBF8C; --mark:#5C5215; --wind:#7FB4E6; --blue:#6FA0EE; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#191917; --ink:#ECEAE3; --mute:#A3A197; --line:#34332F; --wash:#22211F;
+  --res:#6B5636; --pub:#7A5A3C; --park:#3F5A30; --road:#2B2A27; --ctx:#33322E; --ctxtall:#55534C;
+  --shadow:#8FA6CC; --tower:#ECEAE3; --tower-ink:#191917; --problem:#E8776B; --ok:#7DBF8C; --mark:#5C5215; --wind:#7FB4E6; --blue:#6FA0EE; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f);font-weight:400;font-size:clamp(14px,.82vw + 4px,18px);line-height:1.55}
+.page{direction:rtl;max-width:1880px;margin:0 auto;padding-block:clamp(16px,2vw,32px);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:clamp(16px,1.6vw,28px)}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 32px}
+.eyebrow{color:var(--mute);font-size:.85em}
+h1{font-weight:300;font-size:clamp(28px,3.3vw,62px);line-height:1.08;margin:.1em 0 0;text-wrap:balance}
+h1 b{font-weight:600}
+.lede{max-width:46ch;margin:0;font-size:1.08em}
+.lede b,.sc b,li b{font-weight:600}
+mark{background:var(--mark);color:inherit;padding:0 .25em}
+.spread{display:grid;grid-template-columns:1.618fr 1fr;gap:clamp(16px,1.6vw,28px);align-items:stretch}
+.spread>*{min-width:0}
+figure{margin:0;background:var(--wash);position:relative}
+svg{display:block;width:100%;height:auto;direction:ltr;font-family:var(--f)}
+.ctx .b{fill:var(--ctx)} .ctx .tall{fill:var(--ctxtall)}
+.lot{stroke:var(--bg);stroke-width:.6}
+.lot.res{fill:var(--res)} .lot.pub{fill:var(--pub)} .lot.park{fill:var(--park)} .lot.road{fill:var(--road)}
+.blue{fill:none;stroke:var(--blue);stroke-width:1.6}
+.trees .uproot{fill:var(--problem)} .trees .move{fill:var(--wind)} .trees .keep{fill:var(--ok)}
+.sh .s{fill:var(--shadow)} .sh.h9{opacity:.16} .sh.h12{opacity:.3} .sh.h15{opacity:.16}
+.tower{fill:var(--tower)} .old{fill:var(--tower);opacity:.8}
+.tl{fill:var(--tower-ink);font-size:7.5px;text-anchor:middle;font-weight:400} .tl .n{font-weight:600;font-size:8.5px}
+.dem .x{fill:none;stroke:var(--problem);stroke-width:.9;stroke-dasharray:3 2}
+#fut:not([hidden])~.dem{display:none}
+svg [hidden]{display:none}
+.st{fill:var(--mute);font-size:8px;text-anchor:middle}
+.hr{fill:var(--shadow);font-size:10px;font-weight:600;text-anchor:middle}
+.north path{fill:var(--ink)} .north text,.scale text{fill:var(--ink);font-size:9px;text-anchor:middle}
+.scale path{stroke:var(--ink);stroke-width:1;fill:none}
+.wind path{stroke:var(--wind);stroke-width:1.8;fill:none;stroke-linecap:round} .wl{fill:var(--wind);font-size:9px;text-anchor:middle}
+.switch{position:absolute;top:12px;right:12px;display:flex;gap:6px}
+.switch button{font:inherit;font-size:.9em;border:0;background:var(--bg);color:var(--ink);padding:.5em 1em;cursor:pointer;box-shadow:0 1px 6px rgba(0,0,0,.16);transition:transform .12s}
+.switch button:hover{transform:translateY(-1px)} .switch button:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.switch button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+figcaption{padding:.7em 1em;display:flex;flex-wrap:wrap;gap:.3em 1.2em;font-size:.85em;color:var(--mute)}
+figcaption i{display:inline-block;width:.9em;height:.9em;margin-inline-end:.35em;vertical-align:-.1em}
+.script h2,.band h2{font-weight:400;font-size:1.25em;margin:0 0 .5em}
+ol.sc{list-style:none;margin:0;padding:0;counter-reset:s;display:flex;flex-direction:column}
+ol.sc li{counter-increment:s;display:grid;grid-template-columns:2.2em 1fr;gap:0 .6em;padding:.62em 0;border-top:1px solid var(--line)}
+ol.sc li::before{content:counter(s);font-weight:300;font-size:1.9em;line-height:1;color:var(--mute)}
+ol.sc h3{margin:0;font-size:1.02em;font-weight:600}
+ol.sc p{margin:.12em 0 0;grid-column:2}
+ol.sc .ctl{color:var(--mute);font-size:.9em}
+.band{display:grid;grid-template-columns:1.618fr 1fr;gap:clamp(16px,1.6vw,28px);align-items:start}
+.band>*{min-width:0}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{text-align:right;padding:.42em .7em;border-bottom:1px solid var(--line);white-space:nowrap}
+th{font-weight:400;color:var(--mute);font-size:.85em}
+td.n{font-weight:600}
+.trust{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(12px,1.4vw,24px)}
+.trust>div{min-width:0}
+.trust h3{margin:0 0 .3em;font-size:.85em;font-weight:600;letter-spacing:.02em}
+.trust p{margin:0 0 .45em}
+.fact h3{color:var(--ok)} .est h3{color:var(--wind)} .asm h3{color:var(--problem)}
+.side{display:flex;flex-direction:column;gap:1em}
+.orient{margin:0;font-size:1.05em}
+.need{background:var(--wash);padding:1em 1.2em}
+.need ol{margin:.3em 0 0;padding-inline-start:1.3em}
+footer{color:var(--mute);font-size:.82em}
+@media (max-width:980px){.spread,.band{grid-template-columns:1fr}.trust{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){.switch button{transition:none}}
+</style>
+
+<div class="page">
+  <header>
+    <div>
+      <div class="eyebrow">תסריט למודל תלת־ממדי · פינוי בינוי מתחם האצ"ל, רחובות · תוכניות רח/2/5/46 ו־414-1113752</div>
+      <h1>בחורף, <b>הצל יוצא מגבולות המתחם</b></h1>
+    </div>
+    <p class="lede">מגדל של <b>99 מטר</b> מטיל בצהרי 21 בדצמבר צל של <b>{{s12}} מטר</b>, ובתשע בבוקר <b>{{s9}} מטר</b>.<br><mark>המודל ימדוד את הצל הזה שעה אחר שעה, ואת מקומה של דירה אחת בתוכו.</mark></p>
+  </header>
+
+  <section class="spread">
+    <figure>
+      <div class="switch" role="group" aria-label="מצב התרשים">
+        <button id="b-fut" type="button" aria-pressed="true">מצב עתידי</button>
+        <button id="b-cur" type="button" aria-pressed="false">מצב קיים</button>
+      </div>
+      {{SVG}}
+      <figcaption>
+        <span><i style="background:var(--shadow);opacity:.45"></i>צל ב־21 בדצמבר, 9:00, 12:00, 15:00 (שעון שמש)</span>
+        <span><i style="background:var(--tower)"></i>נפח בנוי</span>
+        <span><i style="background:var(--res)"></i>מגורים</span>
+        <span><i style="background:var(--park)"></i>שצ"פ</span>
+        <span><i style="background:var(--pub)"></i>מבנה ציבור</span>
+        <span><i style="background:var(--ctxtall)"></i>שכנים מעל 25 מ'</span>
+        <span><i style="border:1.5px solid var(--blue)"></i>קו כחול</span>
+        <span>עצים: <i style="background:var(--ok);border-radius:50%"></i>שימור <i style="background:var(--wind);border-radius:50%"></i>העתקה <i style="background:var(--problem);border-radius:50%"></i>עקירה</span>
+      </figcaption>
+    </figure>
+
+    <div class="script">
+      <h2>התסריט: שבע סצנות, מהלוויין אל החלון</h2>
+      <ol class="sc">
+        <li><h3>הגעה מהאוויר</h3><p>תצלום לוויין של רחובות, והקו הכחול נדלק על <b>19.3 דונם</b> בין אצ"ל, ציפורה טוב, השעורה, בארי ויבנה.</p><p class="ctl">המצלמה יורדת מ־600 מטר אל גובה הגגות.</p></li>
+        <li><h3>מצב קיים</h3><p><b>{{old}} בנייני שיכון</b> בגובה מדוד של <b>{{oldh}} מ'</b>, 100 דירות, רחוב התאנה, גני ילדים ובית כנסת בלב השצ"פ.</p><p class="ctl">לחיצה על בניין מציגה כתובת וגובה.</p></li>
+        <li><h3>פינוי</h3><p>המבנים שסומנו להריסה נעלמים, ורחוב התאנה מתבטל. מתוך 90 עצים: <b>{{keep}} נשארים</b>, {{move}} מועתקים, {{uproot}} נעקרים.</p><p class="ctl">מחוון זמן לפי שלבי הביצוע: 101, אחריו 103, 102, ולבסוף 104.</p></li>
+        <li><h3>מצב עתידי</h3><p>חמישה נפחים עולים מתוך קווי הבניין: <b>71, 99, 99, 37 ו־17 מ'</b>. 375 דירות סביב שצ"פ של 3.8 דונם מעל חניון.</p><p class="ctl">מתג קיים מול עתידי, באותה זווית מצלמה.</p></li>
+        <li><h3>שמש וצל</h3><p>מחוון תאריך ומחוון שעה מזיזים את השמש. ארבעה ימי מפתח בלחיצה. המודל צובע <b>כמה שעות שמש</b> מקבלים השצ"פ, הרחובות והשכנים.</p><p class="ctl">השוואה: הצל היום מול הצל אחרי הבנייה.</p></li>
+        <li><h3>רוח</h3><p>שושנת רוחות מעל המתחם, וסימון החזיתות החשופות והמעברים בין המגדלים, שבהם התוכנית עצמה דורשת בדיקת מטרדי רוח.</p><p class="ctl">בורר עונה: בריזת קיץ, רוח מזרחית, סערת חורף.</p></li>
+        <li><h3>הדירה שלי</h3><p>בוחרים בניין, קומה וחזית, והמצלמה נכנסת פנימה. <b>מצפן הדירה</b> מראה לאן פונה כל חלון, מתי נכנסת שמש ישירה בכל עונה, מי מצל עליה, ומאיפה באה הרוח.</p><p class="ctl">תעודת דירה אחת, מוכנה להדפסה.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="band">
+    <div>
+      <h2>הנפחים, לפי טבלה 5 בתוכנית המעודכנת</h2>
+      <div class="tw"><table>
+        <thead><tr><th>תא שטח</th><th>שימוש</th><th>קומות מעל הכניסה</th><th>גובה, מ'</th><th>יח"ד</th><th>מגרש, מ"ר</th><th>צל בצהרי 21.12, מ'</th></tr></thead>
+        <tbody>{{ROWS}}</tbody>
+      </table></div>
+
+    </div>
+    <div class="side">
+      <p class="orient"><b>כיוון המתחם:</b> רשת הרחובות מסובבת כ־37 מעלות מהצפון. לכן אף חזית אינה פונה לרוח שמיים טהורה: החזיתות פונות <b>צפון־מזרח, דרום־מזרח, דרום־מערב וצפון־מערב</b>. זו נקודת המוצא לקריאת הדירה.</p>
+    <div class="need">
+      <h2>מה נדרש ממך לשלב הבא</h2>
+      <ol>
+        <li><b>תוכניות הבניינים:</b> קומה טיפוסית, חתך וחזיתות. הן יחליפו את המעטפת בנפח האמיתי.</li>
+        <li><b>הדירה:</b> באיזה בניין, באיזו קומה, ולאן היא פונה.</li>
+        <li><b>שלב הביצוע היום:</b> מה כבר נהרס ומה כבר נבנה, כדי שמצב קיים יהיה נכון להיום.</li>
+      </ol>
+    </div></div>
+  </section>
+
+  <section class="trust">
+    <div class="fact"><h3>עובדה</h3>
+      <p>גבהים, קומות, יחידות דיור, תאי שטח, קווי בניין, מבנים להריסה ועצים: מהוראות התוכנית ומקובצי המדידה שלה.</p>
+      <p>גובה המבנים הקיימים ושל {{ctx}} מבני הסביבה: מקובץ המבנים שצורף לתוכנית.</p>
+      <p>זוויות השמש: חישוב אסטרונומי לקו רוחב 31.9. בצהרי 21 בדצמבר השמש בגובה {{alt12}} מעלות.</p></div>
+    <div class="est"><h3>הערכה</h3>
+      <p>הנפח בתרשים הוא המעטפת המרבית שבתוך קו הבניין. התכסית המותרת היא 45%, ולכן המגדל האמיתי צר יותר והצל שלו צר יותר, אבל ארוך באותה מידה.</p>
+      <p>משטר הרוחות הוא הידע האקלימי המקובל לשפלת החוף. במודל הוא יוחלף בשושנת רוחות מדודה של השירות המטאורולוגי.</p></div>
+    <div class="asm"><h3>הנחה</h3>
+      <p>הדירה נמצאת באחד הבניינים החדשים, והמודל הוא כלי אישי שלך ולא של העירייה.</p>
+      <p>הקרקע שטוחה, והגובה נמדד ממפלס הכניסה הקובעת.</p>
+      <p>הכלים: אותם כלים של המודלים הקודמים, תלת־ממד בדפדפן, עם תצלום לוויין כשכבת קרקע.</p></div>
+  </section>
+
+  <footer>מקורות: הוראות תוכנית רח/2/5/46 (2016), הוראות ותשריט תוכנית 414-1113752 (2024), קובצי SHP ו־KML של התוכנית. התרשים מחושב מהנתונים, בקנה מידה, והצפון למעלה.</footer>
+</div>
+
+<script>
+(function(){
+  var fut=document.getElementById('fut'),cur=document.getElementById('cur'),bf=document.getElementById('b-fut'),bc=document.getElementById('b-cur');
+  function tog(el,hide){if(hide){el.setAttribute('hidden','')}else{el.removeAttribute('hidden')}}
+  function set(isFut){tog(fut,!isFut);tog(cur,isFut);bf.setAttribute('aria-pressed',isFut);bc.setAttribute('aria-pressed',!isFut);}
+  bf.addEventListener('click',function(){set(true)});bc.addEventListener('click',function(){set(false)});
+})();
+</script>
