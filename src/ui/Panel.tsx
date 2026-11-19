@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { type Owner, type WindKey, WINDS, useStore } from '../store.ts'
-import { byId, facadesOf, lots, oldBuildings, towers, trees } from '../lib/site.ts'
+import { byId, facadesOf, lots, myApt, oldBuildings, towers, trees } from '../lib/site.ts'
 import { KEY_DAYS, dateLabel, hourLabel, sunAt } from '../lib/sun.ts'
 import { aptReport, exposure, exposureWord, parkSunHours, rankTmura, unitReport } from '../lib/analysis.ts'
 
@@ -241,6 +241,39 @@ function Owners() {
   )
 }
 
+const DIR8 = ['צפון', 'צפון־מזרח', 'מזרח', 'דרום־מזרח', 'דרום', 'דרום־מערב', 'מערב', 'צפון־מערב']
+const dir8 = (b: number) => DIR8[Math.round(b / 45) % 8]
+
+/** תעודת הדירה של ענת: הפרטים כפי שנקראו מהתוכנית, לאימות. */
+function MyApt() {
+  const s = useStore()
+  const on = s.plan
+  return (
+    <div className="card mine">
+      <h3>הדירה שלי, לפי התוכנית</h3>
+      <dl>
+        <dt>בניין</dt><dd>103, תא שטח 103</dd>
+        <dt>קומה</dt><dd>5, במפלס {myApt.level.toFixed(2)}+ מ'</dd>
+        <dt>טיפוס</dt><dd>{myApt.type}, דירת תמורה</dd>
+        <dt>שטח שמודפס בתוכנית</dt><dd>{myApt.plan_area} מ"ר</dd>
+        <dt>שטח מכר בטבלה</dt><dd>102.2 מ"ר</dd>
+        <dt>מרפסת</dt><dd>12 מ"ר, פונה ל{dir8(myApt.bearings.balcony)}</dd>
+        <dt>חלון הסלון</dt><dd>פונה ל{dir8(myApt.bearings.living)}</dd>
+        <dt>דלת הכניסה</dt><dd>בצד {dir8(myApt.bearings.entry)}, מהמבואה</dd>
+      </dl>
+      <table className="mini">
+        <thead><tr><th>חלל</th><th>שטח, מ"ר</th><th>מקור</th></tr></thead>
+        <tbody>{myApt.rooms.map((r) => <tr key={r.name}><td><b>{r.name}</b></td><td>{r.area}</td><td>{r.source}</td></tr>)}</tbody>
+      </table>
+      <div className="checks">
+        <button id="apt-plan" type="button" className="act" onClick={() => { const b = towers.find((t) => t.lot === myApt.lot)!; s.set({ plan: true, mode: 'future', apt: { ...s.apt, future: { id: b.id, floor: myApt.floor, facade: 'ne', unit: myApt.type } } }); s.look('plan') }}>תוכנית הדירה בתלת־ממד</button>
+        {on && <button id="apt-plan-off" type="button" onClick={() => { s.set({ plan: false }); s.look('bird') }}>חזרה לבניין השלם</button>}
+      </div>
+      <p className="note"><b>עובדה:</b> הקירות, החדרים והמידות מתוכנית קומה 5 של בניין A. <b>הערכה:</b> בניין 103 הוא תמונת ראי של התוכנית הזו, ולכן הדירה משוקפת. הדגם פתוח מלמעלה, בלי תקרה, ולכן השמש שנראית בתוכו מראה כיוון ולא חדירה אמיתית דרך החלונות. <b>לבדיקה:</b> בתוכנית ספרתי שלושה חדרים (סלון ושני חדרי שינה), אף שהטיפוס נקרא A4.</p>
+    </div>
+  )
+}
+
 function HomeNew() {
   const s = useStore()
   const apt = s.apt.future, b = byId(apt?.id ?? null)
@@ -265,7 +298,7 @@ function HomeNew() {
   return (
     <>
       <p className="insight"><mark>הדירות כאן הן מתוכניות הבניינים.</mark> בוחרים בניין, קומה ודירה, ורואים את השמש שלה.</p>
-      <button id="apt-mine" type="button" className="act" onClick={() => { const m = towers.find((t) => t.lot === '103'); if (m) pick(m.id, 5, 'A4-2T') }}>הדירה שלי: בניין 103, קומה 5</button>
+      <MyApt />
       <div className="pick">
         <label htmlFor="apt-b">בניין</label>
         <select id="apt-b" value={b?.real ? b.id : ''} onChange={(e) => pick(Number(e.target.value))}>

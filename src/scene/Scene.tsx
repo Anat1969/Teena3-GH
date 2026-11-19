@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Html, OrbitControls } from '@react-three/drei'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
-import { type Building, type Pt, boundary, byId, context, facadesOf, geo, lots, oldBuildings, streets, towers, trees } from '../lib/site.ts'
+import { type Building, type Pt, boundary, byId, context, facadesOf, geo, lots, myApt, oldBuildings, streets, towers, trees } from '../lib/site.ts'
 import { sunAt } from '../lib/sun.ts'
 import { groundSunHours } from '../lib/shade.ts'
 import { aptSpot, heightMapFor } from '../lib/analysis.ts'
@@ -86,18 +86,21 @@ function Block({ b }: { b: Building }) {
   const mode = useStore((s) => s.mode), tab = useStore((s) => s.tab), selected = useStore((s) => s.selected), apt = useStore((s) => s.apt[s.mode])
   const set = useStore((s) => s.set), setApt = useStore((s) => s.setApt)
   const [hover, setHover] = useState(false)
-  const g = useMemo(() => prism(b.pts, b.h), [b])
+  const plan = useStore((s) => s.plan)
+  const cut = plan && tab === 'home' && mode === 'future' && b.lot === myApt.lot
+  const top = cut ? myApt.level - 0.05 : b.h
+  const g = useMemo(() => prism(b.pts, top), [b, top])
   const lines = useMemo(() => {
     const pos: number[] = []
-    const ys = b.real ? [...Object.values(b.real.levels), b.real.roof, b.h] : Array.from({ length: b.floors }, (_, i) => ((i + 1) * b.h) / b.floors)
+    const ys = b.real ? [...Object.values(b.real.levels), b.real.roof, b.h].filter((y) => y <= top) : Array.from({ length: b.floors }, (_, i) => ((i + 1) * b.h) / b.floors)
     for (const y of ys) {
       b.pts.forEach((p, i) => { const q = b.pts[(i + 1) % b.pts.length]; pos.push(p[0], y, -p[1], q[0], y, -q[1]) })
     }
-    b.pts.forEach((p) => pos.push(p[0], 0, -p[1], p[0], b.h, -p[1]))
+    b.pts.forEach((p) => pos.push(p[0], 0, -p[1], p[0], top, -p[1]))
     const lg = new THREE.BufferGeometry()
     lg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
     return lg
-  }, [b])
+  }, [b, top])
   const mine = tab === 'home' ? apt?.id === b.id : selected === b.id
   const color = mine ? '#FFE9A8' : hover ? '#FFF6DA' : b.kind === 'tower' ? '#FBFAF6' : '#E9D9BF'
   void mode
@@ -114,7 +117,7 @@ function Block({ b }: { b: Building }) {
         <meshLambertMaterial color={color} />
       </mesh>
       <lineSegments geometry={lines}><lineBasicMaterial color={INK} transparent opacity={b.kind === 'tower' ? 0.28 : 0.4} /></lineSegments>
-      {b.kind === 'tower' && (
+      {b.kind === 'tower' && !cut && (
         <Html position={[b.pts.reduce((s, p) => s + p[0], 0) / b.pts.length, b.h + 6, -b.pts.reduce((s, p) => s + p[1], 0) / b.pts.length]} center zIndexRange={[5, 0]} style={{ pointerEvents: 'none' }}>
           <div className="tag"><b>{b.lot}</b> {Math.round(b.h)} מ'</div>
         </Html>
@@ -288,6 +291,36 @@ function AptMarker() {
   )
 }
 
+// ---------- תוכנית הדירה ----------
+function shapeOf(pts: Pt[], holes: Pt[][] = []) {
+  const s = new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(x, y)))
+  holes.forEach((h) => s.holes.push(new THREE.Path(h.map(([x, y]) => new THREE.Vector2(x, y)))))
+  return s
+}
+const WALL_H = 2.7
+function AptPlan() {
+  const geo3 = useMemo(() => {
+    const ex = (walls: typeof myApt.walls.concrete, h: number) => {
+      const g = new THREE.ExtrudeGeometry(walls.map((w) => shapeOf(w.pts, w.holes)), { depth: h, bevelEnabled: false })
+      g.rotateX(-Math.PI / 2)
+      return g
+    }
+    const fl = (pts: Pt[], y: number) => { const g = new THREE.ShapeGeometry(shapeOf(pts)); g.rotateX(-Math.PI / 2); g.translate(0, y, 0); return g }
+    return { concrete: ex(myApt.walls.concrete, WALL_H), block: ex(myApt.walls.block, WALL_H), floor: fl(myApt.outline, 0.02), balc: myApt.balconies.map((b) => fl(b.pts, 0.05)) }
+  }, [])
+  return (
+    <group position-y={myApt.level}>
+      <mesh geometry={geo3.floor} receiveShadow><meshLambertMaterial color="#F4EFE4" /></mesh>
+      {geo3.balc.map((g, i) => <mesh key={i} geometry={g} receiveShadow><meshLambertMaterial color="#C9DDB8" /></mesh>)}
+      <mesh geometry={geo3.concrete} castShadow receiveShadow><meshLambertMaterial color="#9A978F" /></mesh>
+      <mesh geometry={geo3.block} castShadow receiveShadow><meshLambertMaterial color="#E4E1D8" /></mesh>
+      {myApt.rooms.map((r) => (
+        <Html key={r.name} position={[r.at[0], 0.6, -r.at[1]]} center zIndexRange={[9, 0]} style={{ pointerEvents: 'none' }}><div className="room"><b>{r.name}</b>{r.area} מ"ר</div></Html>
+      ))}
+    </group>
+  )
+}
+
 // ---------- מצלמה ----------
 function Rig() {
   const cam = useStore((s) => s.cam)
@@ -299,6 +332,11 @@ function Rig() {
       const spot = aptSpot(apt, b)!, f = spot.face, z = spot.z
       camera.position.copy(v(f.at[0] + f.nx * 3, f.at[1] + f.ny * 3, z + 0.4))
       ctl.current.target.copy(v(f.at[0] + f.nx * 160, f.at[1] + f.ny * 160, Math.max(2, z - 25)))
+    } else if (cam.view === 'plan') {
+      const cx = myApt.outline.reduce((a, p) => a + p[0], 0) / myApt.outline.length, cy = myApt.outline.reduce((a, p) => a + p[1], 0) / myApt.outline.length
+      // מבט מדרום־מערב ומלמעלה, כך שהצפון למעלה במסך בקירוב
+      camera.position.copy(v(cx - 6, cy - 16, myApt.level + 30))
+      ctl.current.target.copy(v(cx, cy, myApt.level))
     } else if (cam.view === 'top') {
       camera.position.set(0, 720, 0.01)
       ctl.current.target.set(0, 0, 0)
@@ -313,6 +351,7 @@ function Rig() {
 
 export default function Scene() {
   const mode = useStore((s) => s.mode), tab = useStore((s) => s.tab)
+  const plan = useStore((s) => s.plan)
   const sat = useStore((s) => s.sat), showLots = useStore((s) => s.lots), showTrees = useStore((s) => s.trees), heat = useStore((s) => s.heat)
   const set = useStore((s) => s.set)
   return (
@@ -329,7 +368,8 @@ export default function Scene() {
       {showTrees && <Trees />}
       {heat && tab === 'sun' && <Heat />}
       {tab === 'wind' && <Wind />}
-      {tab === 'home' && <AptMarker />}
+      {tab === 'home' && !(plan && mode === 'future') && <AptMarker />}
+      {tab === 'home' && plan && mode === 'future' && <AptPlan />}
       <Compass />
       <Streets />
       <Rig />

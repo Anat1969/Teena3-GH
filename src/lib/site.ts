@@ -2,6 +2,7 @@
 // צירים מקומיים: x מזרחה, y צפונה, במטרים, סביב נקודת הייחוס של התוכנית.
 import raw from '../../data/site.json' with { type: 'json' }
 import rawBuildings from '../../data/buildings.json' with { type: 'json' }
+import rawApartment from '../../data/apartment.json' with { type: 'json' }
 
 export type Pt = [number, number]
 export interface Rights { floors: number; basements: number; height: number; units: number; coverage: number; main: number; service: number }
@@ -123,3 +124,11 @@ export function unitFaces(b: Building, at: Pt): Facade[] {
 }
 
 export const byId = (id: number | null) => [...towers, ...oldBuildings].find((b) => b.id === id) ?? null
+
+export interface Wall { pts: Pt[]; holes: Pt[][] }
+/** תוכנית הדירה של ענת, מחולצת מתוכנית הקומה (tools/build-apartment.py). */
+export const myApt = rawApartment as unknown as {
+  lot: string; floor: number; type: string; level: number; plan_area: number; gross: number; outline: Pt[]
+  walls: { concrete: Wall[]; block: Wall[] }; balconies: { name: string; pts: Pt[] }[]
+  rooms: { name: string; at: Pt; area: number; source: string }[]; bearings: { balcony: number; living: number; entry: number }
+}
