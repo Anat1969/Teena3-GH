@@ -8,6 +8,7 @@ import { sunAt } from '../lib/sun.ts'
 import { groundSunHours } from '../lib/shade.ts'
 import { aptSpot, heightMapFor } from '../lib/analysis.ts'
 import { WINDS, useStore } from '../store.ts'
+import rawFacades from '../../data/facades.json'
 
 const INK = '#2E2E2B'
 const APT = '#D7263D'
@@ -76,6 +77,47 @@ function Tile({ g, url }: { g: THREE.BufferGeometry; url: string }) {
   return <mesh geometry={g} receiveShadow><meshLambertMaterial map={map} /></mesh>
 }
 
+// ---------- חזיתות מההיתר ----------
+type Side = 'right' | 'left' | 'top' | 'bottom'
+const SIDES: Side[] = ['right', 'left', 'top', 'bottom']
+const SIDE_N: Record<Side, [number, number]> = { right: [1, 0], left: [-1, 0], top: [0, -1], bottom: [0, 1] }
+const facades = rawFacades as unknown as Record<string, { hmax: number; sides: Record<Side, { img: string; left: [number, number]; width: number }>; lots: Record<string, number[][]> }>
+const texCache = new Map<string, THREE.Texture>()
+function facadeTex(url: string) {
+  if (!texCache.has(url)) { const x = new THREE.TextureLoader().load(url); x.colorSpace = THREE.SRGBColorSpace; x.anisotropy = 8; texCache.set(url, x) }
+  return texCache.get(url)!
+}
+/** קירות הבניין עם החזיתות מההיתר. חזית היא היטל ישר, ולכן כל קיר מקבל את החזית שמולו, בהיטל ישר. */
+function facadeGeometry(b: Building, top: number) {
+  const f = facades[b.real!.plan], M = f.lots[b.lot!]
+  const det = M[0][0] * M[1][1] - M[0][1] * M[1][0]
+  const sheet = ([x, y]: Pt): Pt => { const dx = x - M[2][0], dy = y - M[2][1]; return [(dx * M[1][1] - dy * M[1][0]) / det, (dy * M[0][0] - dx * M[0][1]) / det] }
+  const mpp = Math.hypot(M[0][0], M[0][1])
+  const sp = b.pts.map(sheet)
+  const cx = (Math.min(...sp.map((p) => p[0])) + Math.max(...sp.map((p) => p[0]))) / 2, cy = (Math.min(...sp.map((p) => p[1])) + Math.max(...sp.map((p) => p[1]))) / 2
+  const mid: Pt = [sp.reduce((s, p) => s + p[0], 0) / sp.length, sp.reduce((s, p) => s + p[1], 0) / sp.length]
+  const pos: number[][] = [[], [], [], []], uv: number[][] = [[], [], [], []]
+  for (let i = 0; i < sp.length; i++) {
+    const j = (i + 1) % sp.length, e: Pt = [sp[j][0] - sp[i][0], sp[j][1] - sp[i][1]]
+    let n: Pt = [e[1], -e[0]]
+    const m: Pt = [(sp[i][0] + sp[j][0]) / 2 - mid[0], (sp[i][1] + sp[j][1]) / 2 - mid[1]]
+    if (n[0] * m[0] + n[1] * m[1] < 0) n = [-n[0], -n[1]] // הנורמל פונה החוצה
+    const k = SIDES.reduce((best, s, idx) => (n[0] * SIDE_N[s][0] + n[1] * SIDE_N[s][1] > n[0] * SIDE_N[SIDES[best]][0] + n[1] * SIDE_N[SIDES[best]][1] ? idx : best), 0)
+    const side = f.sides[SIDES[k]]
+    const u = (p: Pt) => 0.5 - (((p[0] - cx) * side.left[0] + (p[1] - cy) * side.left[1]) * mpp) / side.width
+    const a = b.pts[i], c = b.pts[j], v1 = top / f.hmax
+    pos[k].push(a[0], 0, -a[1], c[0], 0, -c[1], c[0], top, -c[1], a[0], 0, -a[1], c[0], top, -c[1], a[0], top, -a[1])
+    uv[k].push(u(sp[i]), 0, u(sp[j]), 0, u(sp[j]), v1, u(sp[i]), 0, u(sp[j]), v1, u(sp[i]), v1)
+  }
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos.flat(), 3))
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv.flat(), 2))
+  let start = 0
+  pos.forEach((p, k) => { g.addGroup(start, p.length / 3, k); start += p.length / 3 })
+  g.computeVertexNormals()
+  return { g, mats: SIDES.map((s) => new THREE.MeshLambertMaterial({ map: facadeTex(f.sides[s].img), side: THREE.DoubleSide })) }
+}
+
 // ---------- בניינים ----------
 function Context() {
   const g = useMemo(() => mergeGeometries(context.map((b) => prism(b.pts, b.h)))!, [])
@@ -86,10 +128,12 @@ function Block({ b }: { b: Building }) {
   const mode = useStore((s) => s.mode), tab = useStore((s) => s.tab), selected = useStore((s) => s.selected), apt = useStore((s) => s.apt[s.mode])
   const set = useStore((s) => s.set), setApt = useStore((s) => s.setApt)
   const [hover, setHover] = useState(false)
-  const plan = useStore((s) => s.plan)
+  const plan = useStore((s) => s.plan), showFacades = useStore((s) => s.facades)
   const cut = plan && tab === 'home' && mode === 'future' && !!b.real && apt?.id === b.id
   const top = cut ? b.real!.levels[String(apt!.floor)] : b.h
   const g = useMemo(() => prism(b.pts, top), [b, top])
+  const skin = useMemo(() => (b.real && showFacades ? facadeGeometry(b, top) : null), [b, top, showFacades])
+  const roof = useMemo(() => (skin ? flat(b.pts, top) : null), [b, top, skin])
   const lines = useMemo(() => {
     const pos: number[] = []
     const ys = b.real ? [...Object.values(b.real.levels), b.real.roof, b.h].filter((y) => y <= top) : Array.from({ length: b.floors }, (_, i) => ((i + 1) * b.h) / b.floors)
@@ -123,9 +167,11 @@ function Block({ b }: { b: Building }) {
           if (tab === 'home') { if (b.h > 8 && apt?.id !== b.id) { const fl = b.real ? b.real.floors[Math.floor(b.real.floors.length / 2)] : null; setApt({ id: b.id, floor: fl ? fl.floor : Math.ceil(b.floors / 2), facade: facadesOf(b)[0].key, unit: fl?.apts[0]?.key }) } }
           else set({ selected: b.id })
         }}>
-        <meshLambertMaterial color={color} />
+        <meshLambertMaterial color={color} transparent={!!skin} opacity={skin ? 0 : 1} depthWrite={!skin} />
       </mesh>
-      <lineSegments geometry={lines}><lineBasicMaterial color={INK} transparent opacity={b.kind === 'tower' ? 0.28 : 0.4} /></lineSegments>
+      {skin && <mesh geometry={skin.g} material={skin.mats} receiveShadow />}
+      {skin && roof && <mesh geometry={roof} receiveShadow><meshLambertMaterial color={mine && !cut ? '#FFE9A8' : '#E9E6DD'} /></mesh>}
+      {!skin && <lineSegments geometry={lines}><lineBasicMaterial color={INK} transparent opacity={b.kind === 'tower' ? 0.28 : 0.4} /></lineSegments>}
       {cut && <lineSegments geometry={ghost}><lineBasicMaterial color={INK} transparent opacity={0.1} /></lineSegments>}
       {b.kind === 'tower' && !cut && (
         <Html position={[b.pts.reduce((s, p) => s + p[0], 0) / b.pts.length, b.h + 6, -b.pts.reduce((s, p) => s + p[1], 0) / b.pts.length]} center zIndexRange={[5, 0]} style={{ pointerEvents: 'none' }}>

@@ -28,16 +28,27 @@ CFG = {  # עמודי התוכנית והקומות שכל עמוד מייצג, 
 CORE = ("מבואה", "מדרגות", "מעלית", "לובי")
 b = json.loads((ROOT / "data" / "buildings.json").read_text(encoding="utf-8"))
 
-def path_points(d):
-    pts = []
+def path_rings(d):
+    """מפרק מסלול מילוי לטבעות נפרדות. מסלול אחד יכול להכיל קירות רבים, ולכן אין לחבר את כולם לפוליגון אחד."""
+    rings, cur = [], []
     for it in d["items"]:
         if it[0] == "l":
-            pts += [(it[1].x, it[1].y), (it[2].x, it[2].y)]
-        elif it[0] == "re":
-            r = it[1]; pts += [(r.x0, r.y0), (r.x1, r.y0), (r.x1, r.y1), (r.x0, r.y1)]
-        elif it[0] == "qu":
-            q = it[1]; pts += [(q.ul.x, q.ul.y), (q.ur.x, q.ur.y), (q.lr.x, q.lr.y), (q.ll.x, q.ll.y)]
-    return pts
+            a, b2 = (it[1].x, it[1].y), (it[2].x, it[2].y)
+            if cur and (abs(cur[-1][0] - a[0]) > 0.01 or abs(cur[-1][1] - a[1]) > 0.01):
+                rings.append(cur); cur = []
+            if not cur:
+                cur.append(a)
+            cur.append(b2)
+        else:
+            if cur:
+                rings.append(cur); cur = []
+            if it[0] == "re":
+                r = it[1]; rings.append([(r.x0, r.y0), (r.x1, r.y0), (r.x1, r.y1), (r.x0, r.y1)])
+            elif it[0] == "qu":
+                q = it[1]; rings.append([(q.ul.x, q.ul.y), (q.ur.x, q.ur.y), (q.lr.x, q.lr.y), (q.ll.x, q.ll.y)])
+    if cur:
+        rings.append(cur)
+    return [r for r in rings if len(r) >= 3]
 
 def export(g, tol=0.4):
     g = unary_union(g).simplify(tol)
@@ -53,15 +64,16 @@ for key, cfg in CFG.items():
         walls = {"concrete": [], "block": []}
         for d in page.get_drawings():
             kind = kind_of(d.get("fill"))
-            pts = path_points(d) if kind else []
-            if len(pts) >= 3:
+            for pts in (path_rings(d) if kind else []):
                 g = Polygon(pts).buffer(0)
                 if g.area > 0.5:
                     walls[kind].append(g)
         allw = unary_union(walls["concrete"] + walls["block"])
         # הבניין: גוש הקירות הגדול ביותר. קירות פיתוח ומקרא שמחוץ לו נזרקים.
-        blob = max(allw.buffer(12).geoms if hasattr(allw.buffer(12), "geoms") else [allw.buffer(12)], key=lambda g: g.area)
-        hull = Polygon(blob.exterior).buffer(-11.5)
+        R = 2.2 / mpp  # סוגרים פתחים של עד כ-4 מטר בין קירות, במטרים ולא בנקודות, כדי שיעבוד בכל קנה מידה
+        grown = allw.buffer(R)
+        blob = max(grown.geoms if hasattr(grown, "geoms") else [grown], key=lambda g: g.area)
+        hull = Polygon(blob.exterior).buffer(-(R - 0.5))
         floor = max(hull.geoms, key=lambda g: g.area) if hasattr(hull, "geoms") else hull
         walls = {k: [w for w in v if w.intersects(floor)] for k, v in walls.items()}
         x0, y0, x1, y1 = floor.buffer(3).bounds
