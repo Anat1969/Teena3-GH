@@ -2,8 +2,9 @@
 הפלט: public/floors/<A|B|C>.json ו-public/floors/<A|B|C>-<עמוד>.jpg. נטען באפליקציה רק כשפותחים חתך.
 הרצה: python3 tools/build-floors.py (אחרי build-buildings.py)"""
 import json, math, pathlib, importlib.util
-import numpy as np, pymupdf
-from shapely.geometry import Polygon
+import numpy as np, pymupdf, cv2
+from scipy import ndimage
+from shapely.geometry import Polygon, LineString, Point, box
 from shapely.ops import unary_union
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -50,6 +51,55 @@ def path_rings(d):
         rings.append(cur)
     return [r for r in rings if len(r) >= 3]
 
+def find_balconies(page, mpp, K=4):
+    """מרפסות: האזור הסגור שסביב כל כיתוב "מרפסת" בתוכנית, בלי קווי מידה ובלי קווי הצללה אלכסוניים."""
+    W, H = int(page.rect.width * K), int(page.rect.height * K)
+    img = np.zeros((H, W), np.uint8)
+    for d in page.get_drawings():
+        w, f = d.get("width") or 0, d.get("fill")
+        for it in d["items"]:
+            if it[0] == "l":
+                a, b2 = it[1], it[2]
+                if f is not None or (w >= 0.5 and (abs(a.x - b2.x) < 0.3 or abs(a.y - b2.y) < 0.3)):
+                    cv2.line(img, (int(a.x * K), int(a.y * K)), (int(b2.x * K), int(b2.y * K)), 255, 2)
+            elif it[0] == "re" and (w >= 0.5 or f is not None):
+                r = it[1]; cv2.rectangle(img, (int(r.x0 * K), int(r.y0 * K)), (int(r.x1 * K), int(r.y1 * K)), 255, 2)
+    lab, _ = ndimage.label(img == 0)
+    words, out = page.get_text("words"), []
+    for w in words:
+        if "מרפסת" not in w[4] or any("שירות" in o[4] and abs(o[1] - w[1]) < 6 and abs(o[0] - w[0]) < 60 for o in words):
+            continue
+        cx, cy = int((w[0] + w[2]) / 2 * K), int((w[1] + w[3]) / 2 * K)
+        near = lab[cy - 12:cy + 12, cx - 12:cx + 12]
+        vals = near[near > 0]
+        if not len(vals):
+            continue
+        ys, xs = np.where(lab == np.bincount(vals).argmax())
+        if 3 < len(ys) / (K * K) * mpp * mpp < 45:
+            out.append([round(float(v) / K, 1) for v in (xs.min(), ys.min(), xs.max(), ys.max())])
+    return out
+
+def find_openings(body, walls, mpp):
+    """פתחים בחזית: קטעים בהיקף הבניין שאין בהם קיר. בתוכנית, חלון ודלת מרפסת הם רווח בין קירות."""
+    wall = unary_union(walls).buffer(0.25 / mpp)
+    ring = body.exterior
+    step, n = 0.2 / mpp, int(ring.length / (0.2 / mpp))
+    open_ = [not wall.contains(ring.interpolate(i * step)) for i in range(n)]
+    out, i = [], 0
+    while i < n:
+        if open_[i]:
+            j = i
+            while j < n and open_[j]:
+                j += 1
+            L = (j - i) * 0.2
+            if 0.7 <= L <= 7:
+                a, b2 = ring.interpolate(i * step), ring.interpolate((j - 1) * step)
+                out.append([round(a.x, 1), round(a.y, 1), round(b2.x, 1), round(b2.y, 1)])
+            i = j
+        else:
+            i += 1
+    return out
+
 def export(g, tol=0.4):
     g = unary_union(g).simplify(tol)
     return [dict(pts=[[round(x, 1), round(y, 1)] for x, y in p.exterior.coords[:-1]], holes=[[[round(x, 1), round(y, 1)] for x, y in h.coords[:-1]] for h in p.interiors])
@@ -89,7 +139,13 @@ for key, cfg in CFG.items():
         k = 2000 / max(x1 - x0, y1 - y0)
         pix = pt.get_pixmap(matrix=pymupdf.Matrix(k, k), clip=pymupdf.Rect(x0, y0, x1, y1), alpha=False)
         pix.pil_save(OUT / f"{key}-{pg}.jpg", quality=70, optimize=True)
-        pages[str(pg)] = dict(floors=floors, bbox=[round(v, 1) for v in (x0, y0, x1, y1)], floor=export([floor], 0.3)[0]["pts"],
+        balc = find_balconies(page, mpp)
+        # גוף הבניין: הקומה בלי המרפסות. עליו מולבשת החזית, והמרפסות נבנות לפניו.
+        body = floor.difference(unary_union([box(*r).buffer(0.2 / mpp) for r in balc])) if balc else floor
+        body = max(body.geoms, key=lambda g: g.area) if hasattr(body, "geoms") else body
+        body = body.simplify(0.25 / mpp)
+        pages[str(pg)] = dict(body=[[round(x, 1), round(y, 1)] for x, y in body.exterior.coords[:-1]], balconies=balc,
+                              openings=find_openings(body, walls["concrete"] + walls["block"], mpp), floors=floors, bbox=[round(v, 1) for v in (x0, y0, x1, y1)], floor=export([floor], 0.3)[0]["pts"],
                               walls={k2: export(v) for k2, v in walls.items()}, core=core)
         if labels0 is None:
             labels0 = (labels, floors[0])

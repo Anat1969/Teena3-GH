@@ -88,12 +88,12 @@ function facadeTex(url: string) {
   return texCache.get(url)!
 }
 /** קירות הבניין עם החזיתות מההיתר. חזית היא היטל ישר, ולכן כל קיר מקבל את החזית שמולו, בהיטל ישר. */
-function facadeGeometry(b: Building, top: number) {
+function facadeGeometry(b: Building, top: number, foot: Pt[] = b.pts) {
   const f = facades[b.real!.plan], M = f.lots[b.lot!]
   const det = M[0][0] * M[1][1] - M[0][1] * M[1][0]
   const sheet = ([x, y]: Pt): Pt => { const dx = x - M[2][0], dy = y - M[2][1]; return [(dx * M[1][1] - dy * M[1][0]) / det, (dy * M[0][0] - dx * M[0][1]) / det] }
   const mpp = Math.hypot(M[0][0], M[0][1])
-  const sp = b.pts.map(sheet)
+  const sp = foot.map(sheet)
   const cx = (Math.min(...sp.map((p) => p[0])) + Math.max(...sp.map((p) => p[0]))) / 2, cy = (Math.min(...sp.map((p) => p[1])) + Math.max(...sp.map((p) => p[1]))) / 2
   const mid: Pt = [sp.reduce((s, p) => s + p[0], 0) / sp.length, sp.reduce((s, p) => s + p[1], 0) / sp.length]
   const pos: number[][] = [[], [], [], []], uv: number[][] = [[], [], [], []]
@@ -105,7 +105,7 @@ function facadeGeometry(b: Building, top: number) {
     const k = SIDES.reduce((best, s, idx) => (n[0] * SIDE_N[s][0] + n[1] * SIDE_N[s][1] > n[0] * SIDE_N[SIDES[best]][0] + n[1] * SIDE_N[SIDES[best]][1] ? idx : best), 0)
     const side = f.sides[SIDES[k]]
     const u = (p: Pt) => 0.5 - (((p[0] - cx) * side.left[0] + (p[1] - cy) * side.left[1]) * mpp) / side.width
-    const a = b.pts[i], c = b.pts[j], v1 = top / f.hmax
+    const a = foot[i], c = foot[j], v1 = top / f.hmax
     pos[k].push(a[0], 0, -a[1], c[0], 0, -c[1], c[0], top, -c[1], a[0], 0, -a[1], c[0], top, -c[1], a[0], top, -a[1])
     uv[k].push(u(sp[i]), 0, u(sp[j]), 0, u(sp[j]), v1, u(sp[i]), 0, u(sp[j]), v1, u(sp[i]), v1)
   }
@@ -118,6 +118,65 @@ function facadeGeometry(b: Building, top: number) {
   return { g, mats: SIDES.map((s) => new THREE.MeshLambertMaterial({ map: facadeTex(f.sides[s].img), side: THREE.DoubleSide })) }
 }
 
+// ---------- פרטי חזית בתלת־ממד ----------
+const GLASS = new THREE.MeshPhongMaterial({ color: '#3F556E', specular: '#BFD4EA', shininess: 90, side: THREE.DoubleSide })
+const RAIL = new THREE.MeshPhongMaterial({ color: '#BFD8E6', transparent: true, opacity: 0.38, specular: '#FFFFFF', shininess: 100, side: THREE.DoubleSide, depthWrite: false })
+const SLAB = new THREE.MeshLambertMaterial({ color: '#F4F2EC' })
+/** גוף הבניין עם החזית, מרפסות בולטות עם מעקה זכוכית, ופתחי זכוכית בכל קומה. הכול מתוכניות הקומות. */
+function FacadeDetail({ b, top }: { b: Building; top: number }) {
+  const [file, setFile] = useState<FloorFile | null>(null)
+  useEffect(() => { let live = true; loadFloors(b.real!.plan).then((f) => live && setFile(f)); return () => { live = false } }, [b])
+  const built = useMemo(() => {
+    if (!file) return null
+    const M = file.lots[b.lot!], mpp = Math.hypot(M[0][0], M[0][1])
+    const to = ([x, y]: Pt): Pt => [x * M[0][0] + y * M[1][0] + M[2][0], x * M[0][1] + y * M[1][1] + M[2][1]]
+    const pages = Object.values(file.pages)
+    const typical = pages.reduce((m, p) => (p.floors.length > m.floors.length ? p : m))
+    const foot = typical.body.map(to)
+    const mid: Pt = [foot.reduce((s, p) => s + p[0], 0) / foot.length, foot.reduce((s, p) => s + p[1], 0) / foot.length]
+    const skin = facadeGeometry(b, top, foot)
+    const glass: number[] = [], slabs: THREE.Matrix4[] = [], rails: number[] = []
+    const quad = (arr: number[], a: Pt, c: Pt, y0: number, y1: number) => arr.push(a[0], y0, -a[1], c[0], y0, -c[1], c[0], y1, -c[1], a[0], y0, -a[1], c[0], y1, -c[1], a[0], y1, -a[1])
+    const rotY = Math.atan2(M[0][1], M[0][0])
+    for (const pg of pages) for (const fl of pg.floors) {
+      const y = b.real!.levels[String(fl)]
+      if (y === undefined || y + 1 > top) continue
+      for (const o of pg.openings) {
+        let a = to([o[0], o[1]]), c = to([o[2], o[3]])
+        const len = Math.hypot(c[0] - a[0], c[1] - a[1])
+        if (len < 0.6) continue
+        // הזכוכית יושבת מעט לפני הקיר, כלפי חוץ
+        let n: Pt = [(c[1] - a[1]) / len, -(c[0] - a[0]) / len]
+        if (n[0] * ((a[0] + c[0]) / 2 - mid[0]) + n[1] * ((a[1] + c[1]) / 2 - mid[1]) < 0) n = [-n[0], -n[1]]
+        a = [a[0] + n[0] * 0.08, a[1] + n[1] * 0.08]; c = [c[0] + n[0] * 0.08, c[1] + n[1] * 0.08]
+        const door = len > 2.2 // פתח רחב הוא ויטרינה אל מרפסת, פתח צר הוא חלון עם אדן
+        quad(glass, a, c, y + (door ? 0.1 : 1.0), y + 2.35)
+      }
+      for (const r of pg.balconies) {
+        const c0 = to([(r[0] + r[2]) / 2, (r[1] + r[3]) / 2]), w = (r[2] - r[0]) * mpp, d = (r[3] - r[1]) * mpp
+        slabs.push(new THREE.Matrix4().compose(new THREE.Vector3(c0[0], y - 0.1, -c0[1]), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rotY, 0)), new THREE.Vector3(w, 0.2, d)))
+        const cs: Pt[] = [[r[0], r[1]], [r[2], r[1]], [r[2], r[3]], [r[0], r[3]]].map((q) => to(q as Pt))
+        cs.forEach((q, i) => quad(rails, q, cs[(i + 1) % 4], y, y + 1.05))
+      }
+    }
+    const mk = (arr: number[]) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3)); g.computeVertexNormals(); return g }
+    const roof = new THREE.ShapeGeometry(new THREE.Shape(foot.map(([x, y]) => new THREE.Vector2(x, y)))); roof.rotateX(-Math.PI / 2); roof.translate(0, top, 0)
+    return { skin, glass: mk(glass), rails: mk(rails), slabs, roof }
+  }, [file, b, top])
+  const slabRef = useRef<THREE.InstancedMesh>(null)
+  useEffect(() => { if (built && slabRef.current) { built.slabs.forEach((m, i) => slabRef.current!.setMatrixAt(i, m)); slabRef.current.instanceMatrix.needsUpdate = true } }, [built])
+  if (!built) return null
+  return (
+    <group>
+      <mesh geometry={built.skin.g} material={built.skin.mats} receiveShadow />
+      <mesh geometry={built.roof} receiveShadow><meshLambertMaterial color="#E9E6DD" /></mesh>
+      <mesh geometry={built.glass} material={GLASS} />
+      <instancedMesh key={built.slabs.length} ref={slabRef} args={[undefined, undefined, built.slabs.length]} material={SLAB} castShadow receiveShadow><boxGeometry args={[1, 1, 1]} /></instancedMesh>
+      <mesh geometry={built.rails} material={RAIL} />
+    </group>
+  )
+}
+
 // ---------- בניינים ----------
 function Context() {
   const g = useMemo(() => mergeGeometries(context.map((b) => prism(b.pts, b.h)))!, [])
@@ -128,11 +187,12 @@ function Block({ b }: { b: Building }) {
   const mode = useStore((s) => s.mode), tab = useStore((s) => s.tab), selected = useStore((s) => s.selected), apt = useStore((s) => s.apt[s.mode])
   const set = useStore((s) => s.set), setApt = useStore((s) => s.setApt)
   const [hover, setHover] = useState(false)
-  const plan = useStore((s) => s.plan), showFacades = useStore((s) => s.facades)
+  const plan = useStore((s) => s.plan), showFacades = useStore((s) => s.facades), detail = useStore((s) => s.detail)
   const cut = plan && tab === 'home' && mode === 'future' && !!b.real && apt?.id === b.id
   const top = cut ? b.real!.levels[String(apt!.floor)] : b.h
   const g = useMemo(() => prism(b.pts, top), [b, top])
-  const skin = useMemo(() => (b.real && showFacades ? facadeGeometry(b, top) : null), [b, top, showFacades])
+  const skin = useMemo(() => (b.real && showFacades && !detail ? facadeGeometry(b, top) : null), [b, top, showFacades, detail])
+  const deep = !!b.real && showFacades && detail
   const roof = useMemo(() => (skin ? flat(b.pts, top) : null), [b, top, skin])
   const lines = useMemo(() => {
     const pos: number[] = []
@@ -167,11 +227,12 @@ function Block({ b }: { b: Building }) {
           if (tab === 'home') { if (b.h > 8 && apt?.id !== b.id) { const fl = b.real ? b.real.floors[Math.floor(b.real.floors.length / 2)] : null; setApt({ id: b.id, floor: fl ? fl.floor : Math.ceil(b.floors / 2), facade: facadesOf(b)[0].key, unit: fl?.apts[0]?.key }) } }
           else set({ selected: b.id })
         }}>
-        <meshLambertMaterial color={color} transparent={!!skin} opacity={skin ? 0 : 1} depthWrite={!skin} />
+        <meshLambertMaterial color={color} transparent={!!skin || deep} opacity={skin || deep ? 0 : 1} depthWrite={!(skin || deep)} />
       </mesh>
+      {deep && <FacadeDetail b={b} top={top} />}
       {skin && <mesh geometry={skin.g} material={skin.mats} receiveShadow />}
       {skin && roof && <mesh geometry={roof} receiveShadow><meshLambertMaterial color={mine && !cut ? '#FFE9A8' : '#E9E6DD'} /></mesh>}
-      {!skin && <lineSegments geometry={lines}><lineBasicMaterial color={INK} transparent opacity={b.kind === 'tower' ? 0.28 : 0.4} /></lineSegments>}
+      {!skin && !deep && <lineSegments geometry={lines}><lineBasicMaterial color={INK} transparent opacity={b.kind === 'tower' ? 0.28 : 0.4} /></lineSegments>}
       {cut && <lineSegments geometry={ghost}><lineBasicMaterial color={INK} transparent opacity={0.1} /></lineSegments>}
       {b.kind === 'tower' && !cut && (
         <Html position={[b.pts.reduce((s, p) => s + p[0], 0) / b.pts.length, b.h + 6, -b.pts.reduce((s, p) => s + p[1], 0) / b.pts.length]} center zIndexRange={[5, 0]} style={{ pointerEvents: 'none' }}>
@@ -349,7 +410,7 @@ function AptMarker() {
 
 // ---------- חתך בקומה ----------
 type Poly = { pts: Pt[]; holes: Pt[][] }
-interface FloorPage { floors: number[]; bbox: [number, number, number, number]; floor: Pt[]; walls: { concrete: Poly[]; block: Poly[] }; core: { name: string; at: Pt }[] }
+interface FloorPage { body: Pt[]; balconies: number[][]; openings: number[][]; floors: number[]; bbox: [number, number, number, number]; floor: Pt[]; walls: { concrete: Poly[]; block: Poly[] }; core: { name: string; at: Pt }[] }
 interface FloorFile { pages: Record<string, FloorPage>; lots: Record<string, number[][]> }
 const floorCache = new Map<string, Promise<FloorFile>>()
 const loadFloors = (plan: string) => {
