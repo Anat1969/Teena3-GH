@@ -266,10 +266,10 @@ function MyApt() {
         <tbody>{myApt.rooms.map((r) => <tr key={r.name}><td><b>{r.name}</b></td><td>{r.area}</td><td>{r.source}</td></tr>)}</tbody>
       </table>
       <div className="checks">
-        <button id="apt-plan" type="button" className="act" onClick={() => { const b = towers.find((t) => t.lot === myApt.lot)!; s.set({ plan: true, mode: 'future', apt: { ...s.apt, future: { id: b.id, floor: myApt.floor, facade: 'ne', unit: myApt.type } } }); s.look('plan') }}>תוכנית הדירה בתלת־ממד</button>
+        <button id="apt-plan" type="button" className="act" onClick={() => { const b = towers.find((t) => t.lot === myApt.lot)!; s.set({ plan: true, mode: 'future', apt: { ...s.apt, future: { id: b.id, floor: myApt.floor, facade: 'ne', unit: myApt.type } } }); s.look('plan') }}>הדירה שלי בחתך הקומה</button>
         {on && <button id="apt-plan-off" type="button" onClick={() => { s.set({ plan: false }); s.look('bird') }}>חזרה לבניין השלם</button>}
       </div>
-      <p className="note"><b>עובדה:</b> הקירות, החדרים והמידות מתוכנית קומה 5 של בניין A. <b>הערכה:</b> בניין 103 הוא תמונת ראי של התוכנית הזו, ולכן הדירה משוקפת. הדגם פתוח מלמעלה, בלי תקרה, ולכן השמש שנראית בתוכו מראה כיוון ולא חדירה אמיתית דרך החלונות. <b>לבדיקה:</b> בתוכנית ספרתי שלושה חדרים (סלון ושני חדרי שינה), אף שהטיפוס נקרא A4.</p>
+      <p className="note"><b>עובדה:</b> הקירות, החדרים והמידות מתוכנית קומה 5 של בניין A. <b>הערכה:</b> בניין 103 הוא תמונת ראי של התוכנית הזו, ולכן הדירה משוקפת. החתך עובר 1.25 מ' מעל הרצפה, כמו בתוכנית, ולכן הצל שבתוכו מראה כיוון ולא חדירת שמש אמיתית דרך החלונות. <b>לבדיקה:</b> בתוכנית ספרתי שלושה חדרים (סלון ושני חדרי שינה), אף שהטיפוס נקרא A4.</p>
     </div>
   )
 }
@@ -333,7 +333,10 @@ function HomeNew() {
           <p>{report.faces.map((f, i) => `${f.name}: ${n1(report.days[0].r.perFace[i])} שעות בחורף, ${n1(report.days[2].r.perFace[i])} בקיץ`).join(' · ')}</p>
           <h4>רוח</h4>
           <p>{(Object.keys(WINDS) as WindKey[]).map((k) => `${WINDS[k].name}: ${exposureWord(Math.max(...report.faces.map((f) => exposure(f, WINDS[k].from))))}`).join(' · ')}</p>
-          <button type="button" className="act" onClick={() => s.look('window')}>מבט מהחלון</button>
+          <div className="checks">
+            <button id="apt-cut" type="button" className="act" aria-pressed={s.plan} onClick={() => { s.set({ plan: !s.plan }); s.look(s.plan ? 'bird' : 'plan') }}>{s.plan ? 'חזרה לבניין השלם' : 'חתך בקומה'}</button>
+            <button type="button" onClick={() => { s.set({ plan: false }); s.look('window') }}>מבט מהחלון</button>
+          </div>
           <h4>דירות התמורה ב{b.name}, לפי שמש בחורף</h4>
           {rank ? (rank.length ? (
             <table className="mini rank">

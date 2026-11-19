@@ -109,3 +109,6 @@ textarea{resize:vertical;line-height:1.5}
 .card.mine{display:grid;gap:.6em}
 .room{background:rgba(255,255,255,.92);padding:.1em .45em;font-size:12.5px;white-space:nowrap;display:grid;justify-items:center;line-height:1.25;box-shadow:var(--sh)}
 .room b{font-weight:600}
+.room.core{background:var(--ink);color:#fff}
+.room.sel{background:var(--apt);color:#fff}
+.act[aria-pressed="true"]{background:var(--apt)}

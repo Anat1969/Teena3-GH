@@ -87,8 +87,8 @@ function Block({ b }: { b: Building }) {
   const set = useStore((s) => s.set), setApt = useStore((s) => s.setApt)
   const [hover, setHover] = useState(false)
   const plan = useStore((s) => s.plan)
-  const cut = plan && tab === 'home' && mode === 'future' && b.lot === myApt.lot
-  const top = cut ? myApt.level - 0.05 : b.h
+  const cut = plan && tab === 'home' && mode === 'future' && !!b.real && apt?.id === b.id
+  const top = cut ? b.real!.levels[String(apt!.floor)] : b.h
   const g = useMemo(() => prism(b.pts, top), [b, top])
   const lines = useMemo(() => {
     const pos: number[] = []
@@ -101,8 +101,17 @@ function Block({ b }: { b: Building }) {
     lg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
     return lg
   }, [b, top])
+  // הקומות שמעל החתך: קווי מתאר חיוורים, כדי שיהיה ברור שהבניין ממשיך למעלה
+  const ghost = useMemo(() => {
+    const pos: number[] = []
+    if (b.real) for (const y of [...Object.values(b.real.levels), b.real.roof, b.h].filter((v) => v > top)) b.pts.forEach((p, i) => { const q = b.pts[(i + 1) % b.pts.length]; pos.push(p[0], y, -p[1], q[0], y, -q[1]) })
+    b.pts.forEach((p, i) => { if (i % 6 === 0) pos.push(p[0], top, -p[1], p[0], b.h, -p[1]) })
+    const lg = new THREE.BufferGeometry()
+    lg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+    return lg
+  }, [b, top])
   const mine = tab === 'home' ? apt?.id === b.id : selected === b.id
-  const color = mine ? '#FFE9A8' : hover ? '#FFF6DA' : b.kind === 'tower' ? '#FBFAF6' : '#E9D9BF'
+  const color = cut ? '#F3F1EA' : mine ? '#FFE9A8' : hover ? '#FFF6DA' : b.kind === 'tower' ? '#FBFAF6' : '#E9D9BF'
   void mode
   return (
     <group>
@@ -117,6 +126,7 @@ function Block({ b }: { b: Building }) {
         <meshLambertMaterial color={color} />
       </mesh>
       <lineSegments geometry={lines}><lineBasicMaterial color={INK} transparent opacity={b.kind === 'tower' ? 0.28 : 0.4} /></lineSegments>
+      {cut && <lineSegments geometry={ghost}><lineBasicMaterial color={INK} transparent opacity={0.1} /></lineSegments>}
       {b.kind === 'tower' && !cut && (
         <Html position={[b.pts.reduce((s, p) => s + p[0], 0) / b.pts.length, b.h + 6, -b.pts.reduce((s, p) => s + p[1], 0) / b.pts.length]} center zIndexRange={[5, 0]} style={{ pointerEvents: 'none' }}>
           <div className="tag"><b>{b.lot}</b> {Math.round(b.h)} מ'</div>
@@ -291,32 +301,82 @@ function AptMarker() {
   )
 }
 
-// ---------- תוכנית הדירה ----------
+// ---------- חתך בקומה ----------
+type Poly = { pts: Pt[]; holes: Pt[][] }
+interface FloorPage { floors: number[]; bbox: [number, number, number, number]; floor: Pt[]; walls: { concrete: Poly[]; block: Poly[] }; core: { name: string; at: Pt }[] }
+interface FloorFile { pages: Record<string, FloorPage>; lots: Record<string, number[][]> }
+const floorCache = new Map<string, Promise<FloorFile>>()
+const loadFloors = (plan: string) => {
+  if (!floorCache.has(plan)) floorCache.set(plan, fetch(`/floors/${plan}.json`).then((r) => r.json()))
+  return floorCache.get(plan)!
+}
 function shapeOf(pts: Pt[], holes: Pt[][] = []) {
   const s = new THREE.Shape(pts.map(([x, y]) => new THREE.Vector2(x, y)))
   holes.forEach((h) => s.holes.push(new THREE.Path(h.map(([x, y]) => new THREE.Vector2(x, y)))))
   return s
 }
-const WALL_H = 2.7
-function AptPlan() {
-  const geo3 = useMemo(() => {
-    const ex = (walls: typeof myApt.walls.concrete, h: number) => {
-      const g = new THREE.ExtrudeGeometry(walls.map((w) => shapeOf(w.pts, w.holes)), { depth: h, bevelEnabled: false })
+const CUT_H = 1.25 // גובה החתך מעל הרצפה, כמקובל בתוכנית
+const CORE_NAME: Record<string, string> = { מבואה: 'מבואה קומתית', מדרגות: 'חדר מדרגות', מעלית: 'מעליות' }
+
+/** הקומה שנבחרה, בתוך הבניין החתוך: רצפה עם שרטוט התוכנית, קירות חתוכים, גרעין ודירות. */
+function FloorCut({ b, floor, unitKey }: { b: Building; floor: number; unitKey?: string }) {
+  const [file, setFile] = useState<FloorFile | null>(null)
+  const [tex, setTex] = useState<THREE.Texture | null>(null)
+  useEffect(() => { let live = true; loadFloors(b.real!.plan).then((f) => live && setFile(f)); return () => { live = false } }, [b])
+  const entry = file ? Object.entries(file.pages).find(([, p]) => p.floors.includes(floor)) : undefined
+  const pg = entry?.[0], page = entry?.[1], M = file?.lots[b.lot!]
+  useEffect(() => {
+    if (!pg) return
+    let live = true
+    setTex(null)
+    new THREE.TextureLoader().load(`/floors/${b.real!.plan}-${pg}.jpg`, (x) => { x.colorSpace = THREE.SRGBColorSpace; x.anisotropy = 8; if (live) setTex(x) })
+    return () => { live = false }
+  }, [b, pg])
+  const built = useMemo(() => {
+    if (!page || !M) return null
+    const to = ([x, y]: Pt): Pt => [x * M[0][0] + y * M[1][0] + M[2][0], x * M[0][1] + y * M[1][1] + M[2][1]]
+    const ex = (ps: Poly[]) => {
+      const g = new THREE.ExtrudeGeometry(ps.map((w) => shapeOf(w.pts.map(to), w.holes.map((h) => h.map(to)))), { depth: CUT_H, bevelEnabled: false })
       g.rotateX(-Math.PI / 2)
       return g
     }
-    const fl = (pts: Pt[], y: number) => { const g = new THREE.ShapeGeometry(shapeOf(pts)); g.rotateX(-Math.PI / 2); g.translate(0, y, 0); return g }
-    return { concrete: ex(myApt.walls.concrete, WALL_H), block: ex(myApt.walls.block, WALL_H), floor: fl(myApt.outline, 0.02), balc: myApt.balconies.map((b) => fl(b.pts, 0.05)) }
-  }, [])
+    // הרצפה: צורת הקומה במתחם, והשרטוט מוצמד אליה לפי מיקום כל נקודה בגיליון
+    const [x0, y0, x1, y1] = page.bbox
+    const sheet = page.floor, site = sheet.map(to)
+    const fg = new THREE.ShapeGeometry(shapeOf(site))
+    const pos = fg.getAttribute('position'), uv = fg.getAttribute('uv')
+    const det = M[0][0] * M[1][1] - M[0][1] * M[1][0]
+    for (let i = 0; i < pos.count; i++) {
+      const dx = pos.getX(i) - M[2][0], dy = pos.getY(i) - M[2][1]
+      const sx = (dx * M[1][1] - dy * M[1][0]) / det, sy = (dy * M[0][0] - dx * M[0][1]) / det
+      uv.setXY(i, (sx - x0) / (x1 - x0), 1 - (sy - y0) / (y1 - y0))
+    }
+    fg.rotateX(-Math.PI / 2)
+    return { concrete: ex(page.walls.concrete), block: ex(page.walls.block), floor: fg, core: page.core.filter((c) => CORE_NAME[c.name]).map((c) => ({ name: CORE_NAME[c.name], at: to(c.at) })) }
+  }, [page, M])
+  const mats = useMemo(() => ({
+    concrete: [new THREE.MeshLambertMaterial({ color: '#2E2E2B' }), new THREE.MeshLambertMaterial({ color: '#CFCBC1' })],
+    block: [new THREE.MeshLambertMaterial({ color: '#77746C' }), new THREE.MeshLambertMaterial({ color: '#ECE9E1' })],
+  }), [])
+  const mine = b.lot === myApt.lot && floor === myApt.floor && unitKey === myApt.type
+  const tint = useMemo(() => { const g = new THREE.ShapeGeometry(shapeOf(myApt.outline)); g.rotateX(-Math.PI / 2); return g }, [])
+  const edge = useMemo(() => new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(myApt.outline.map(([x, y]) => new THREE.Vector3(x, CUT_H + 0.05, -y))), new THREE.LineBasicMaterial({ color: APT })), [])
+  if (!built) return <Html center position={[b.pts[0][0], b.real!.levels[String(floor)] + 3, -b.pts[0][1]]}><div className="tag busy">טוען את תוכנית הקומה</div></Html>
+  const units = b.real!.floors.find((f) => f.floor === floor)?.apts ?? []
   return (
-    <group position-y={myApt.level}>
-      <mesh geometry={geo3.floor} receiveShadow><meshLambertMaterial color="#F4EFE4" /></mesh>
-      {geo3.balc.map((g, i) => <mesh key={i} geometry={g} receiveShadow><meshLambertMaterial color="#C9DDB8" /></mesh>)}
-      <mesh geometry={geo3.concrete} castShadow receiveShadow><meshLambertMaterial color="#9A978F" /></mesh>
-      <mesh geometry={geo3.block} castShadow receiveShadow><meshLambertMaterial color="#E4E1D8" /></mesh>
-      {myApt.rooms.map((r) => (
-        <Html key={r.name} position={[r.at[0], 0.6, -r.at[1]]} center zIndexRange={[9, 0]} style={{ pointerEvents: 'none' }}><div className="room"><b>{r.name}</b>{r.area} מ"ר</div></Html>
-      ))}
+    <group position-y={b.real!.levels[String(floor)]}>
+      <mesh geometry={built.floor} position-y={0.02} receiveShadow><meshLambertMaterial key={tex ? tex.uuid : "none"} color="#FFFFFF" map={tex} /></mesh>
+      <mesh geometry={built.concrete} material={mats.concrete} castShadow receiveShadow />
+      <mesh geometry={built.block} material={mats.block} castShadow receiveShadow />
+      {mine && <mesh geometry={tint} position-y={0.06}><meshBasicMaterial color="#FFD23F" transparent opacity={0.3} depthWrite={false} /></mesh>}
+      {mine && <primitive object={edge} />}
+      {built.core.map((c, i) => <Html key={i} position={[c.at[0], CUT_H + 0.4, -c.at[1]]} center zIndexRange={[7, 0]} style={{ pointerEvents: 'none' }}><div className="room core">{c.name}</div></Html>)}
+      {units.map((u) => {
+        const sel = u.key === unitKey
+        if (sel && mine) return null
+        return <Html key={u.key} position={[u.at[0], CUT_H + 0.4, -u.at[1]]} center zIndexRange={[8, 0]} style={{ pointerEvents: 'none' }}><div className={`room${sel ? ' sel' : ''}`}><b>{u.key}</b>{sel ? 'הדירה שנבחרה' : u.area ? `${u.area} מ"ר` : ''}</div></Html>
+      })}
+      {mine && myApt.rooms.map((r) => <Html key={r.name} position={[r.at[0], CUT_H + 0.4, -r.at[1]]} center zIndexRange={[9, 0]} style={{ pointerEvents: 'none' }}><div className="room sel"><b>{r.name}</b>{r.area} מ"ר</div></Html>)}
     </group>
   )
 }
@@ -332,11 +392,13 @@ function Rig() {
       const spot = aptSpot(apt, b)!, f = spot.face, z = spot.z
       camera.position.copy(v(f.at[0] + f.nx * 3, f.at[1] + f.ny * 3, z + 0.4))
       ctl.current.target.copy(v(f.at[0] + f.nx * 160, f.at[1] + f.ny * 160, Math.max(2, z - 25)))
-    } else if (cam.view === 'plan') {
-      const cx = myApt.outline.reduce((a, p) => a + p[0], 0) / myApt.outline.length, cy = myApt.outline.reduce((a, p) => a + p[1], 0) / myApt.outline.length
-      // מבט מדרום־מערב ומלמעלה, כך שהצפון למעלה במסך בקירוב
-      camera.position.copy(v(cx - 6, cy - 16, myApt.level + 30))
-      ctl.current.target.copy(v(cx, cy, myApt.level))
+    } else if (cam.view === 'plan' && apt && b) {
+      const spot = aptSpot(apt, b)!, at = spot.unit?.at ?? spot.face.at
+      const cx = b.pts.reduce((s2, p) => s2 + p[0], 0) / b.pts.length, cy = b.pts.reduce((s2, p) => s2 + p[1], 0) / b.pts.length
+      // מבט מלמעלה ומעט מדרום, אל נקודה שבין מרכז הקומה לדירה: רואים את הדירה ואת הדרך אליה מהגרעין
+      const tx = (cx + at[0] * 2) / 3, ty = (cy + at[1] * 2) / 3
+      camera.position.copy(v(tx - 4, ty - 24, spot.z + 58))
+      ctl.current.target.copy(v(tx, ty, spot.z - 1.5))
     } else if (cam.view === 'top') {
       camera.position.set(0, 720, 0.01)
       ctl.current.target.set(0, 0, 0)
@@ -351,7 +413,8 @@ function Rig() {
 
 export default function Scene() {
   const mode = useStore((s) => s.mode), tab = useStore((s) => s.tab)
-  const plan = useStore((s) => s.plan)
+  const plan = useStore((s) => s.plan), apt = useStore((s) => s.apt[s.mode])
+  const aptB = byId(apt?.id ?? null), cutOn = tab === 'home' && plan && mode === 'future' && !!aptB?.real && !!apt
   const sat = useStore((s) => s.sat), showLots = useStore((s) => s.lots), showTrees = useStore((s) => s.trees), heat = useStore((s) => s.heat)
   const set = useStore((s) => s.set)
   return (
@@ -368,8 +431,8 @@ export default function Scene() {
       {showTrees && <Trees />}
       {heat && tab === 'sun' && <Heat />}
       {tab === 'wind' && <Wind />}
-      {tab === 'home' && !(plan && mode === 'future') && <AptMarker />}
-      {tab === 'home' && plan && mode === 'future' && <AptPlan />}
+      {tab === 'home' && !cutOn && <AptMarker />}
+      {cutOn && <FloorCut b={aptB!} floor={apt!.floor} unitKey={apt!.unit} />}
       <Compass />
       <Streets />
       <Rig />
