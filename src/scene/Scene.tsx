@@ -9,7 +9,7 @@ import { groundSunHours } from '../lib/shade.ts'
 import { aptSpot, heightMapFor } from '../lib/analysis.ts'
 import { WINDS, useStore } from '../store.ts'
 import rawFacades from '../../data/facades.json'
-import { LEGEND, type Paint, paintKey } from '../lib/claim.ts'
+import { FOUR, LEGEND, type Paint, paintKey } from '../lib/claim.ts'
 import { unitFaces } from '../lib/site.ts'
 
 const INK = '#2E2E2B'
@@ -323,7 +323,18 @@ function UnitPaint({ mode }: { mode: Exclude<Paint, 'none'> }) {
     ref.current!.instanceMatrix.needsUpdate = true
     if (ref.current!.instanceColor) ref.current!.instanceColor.needsUpdate = true
   }, [list])
-  return <instancedMesh key={mode + list.length} ref={ref} args={[undefined, undefined, list.length]} frustumCulled={false}><boxGeometry args={[1, 1, 1]} /><meshBasicMaterial transparent opacity={0.88} /></instancedMesh>
+  // בארבע הדירות: תווית עם שם הבעלים על החזית הראשית, זו של המרפסת, ושמות הכיוונים של שתי החזיתות
+  const tags = useMemo(() => (mode !== 'four' ? [] : FOUR.map((o) => {
+    const b = towers.find((x) => x.lot === o.lot)!, u = b.real!.floors.find((f) => f.floor === o.floor)!.apts.find((x) => x.type === o.type)!
+    const faces = unitFaces(b, u.at)
+    return { name: o.name, at: v(faces[0].at[0] + faces[0].nx * 3, faces[0].at[1] + faces[0].ny * 3, b.real!.levels[String(o.floor)] + 1.5 + (o.floor - 4) * 5), text: `קומה ${o.floor}: מרפסת ל${faces[0].name}${faces[1] ? `, סלון ל${faces[1].name}` : ''}` }
+  })), [mode])
+  return (
+    <>
+      <instancedMesh key={mode + list.length} ref={ref} args={[undefined, undefined, list.length]} frustumCulled={false}><boxGeometry args={[1, 1, 1]} /><meshBasicMaterial transparent opacity={0.88} /></instancedMesh>
+      {tags.map((g) => <Html key={g.name} position={g.at} center zIndexRange={[9, 0]} style={{ pointerEvents: 'none' }}><div className="tag who"><b>{g.name}</b>{g.text}</div></Html>)}
+    </>
+  )
 }
 
 // ---------- בניינים ----------

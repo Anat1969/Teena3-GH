@@ -14,7 +14,12 @@ declare module 'react' {
   namespace JSX { interface IntrinsicElements { 'ai-menu': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { chat?: string } } }
 }
 
-const TABS: [Tab, string][] = [['site', 'המתחם'], ['sun', 'שמש וצל'], ['wind', 'רוח'], ['home', 'הדירה שלי'], ['value', 'שווי ותמורה'], ['fair', 'הוגנות התמורה'], ['claim', 'ההסכם והטענה'], ['letter', 'מכתב הדרישה']]
+// הלשוניות בשלוש קבוצות גלויות, עם רווח וגוון לכל קבוצה
+const GROUPS: { name: string; cls: string; tabs: [Tab, string][] }[] = [
+  { name: 'המודל', cls: 'g-model', tabs: [['site', 'המתחם'], ['sun', 'שמש וצל'], ['wind', 'רוח'], ['home', 'הדירה שלי']] },
+  { name: 'הכלכלה', cls: 'g-money', tabs: [['value', 'שווי ותמורה'], ['fair', 'הוגנות התמורה']] },
+  { name: 'ההסכם', cls: 'g-deal', tabs: [['claim', 'ההסכם והטענה'], ['letter', 'מכתב הדרישה']] },
+]
 
 export default function App() {
   const s = useStore()
@@ -34,7 +39,12 @@ export default function App() {
       <header className="top">
         <a className="brand" href="/" title="חזרה למבט הפתיחה"><b>התאנה 3</b><span>מתחם האצ"ל, רחובות</span></a>
         <nav className="tabs" aria-label="נושאים">
-          {TABS.map(([k, name]) => <button key={k} type="button" aria-pressed={s.tab === k} onClick={() => s.set({ tab: k })}>{name}</button>)}
+          {GROUPS.map((g) => (
+            <div key={g.name} className={`group ${g.cls}`} role="group" aria-label={g.name}>
+              <span>{g.name}</span>
+              {g.tabs.map(([k, name]) => <button key={k} type="button" aria-pressed={s.tab === k} onClick={() => s.set({ tab: k })}>{name}</button>)}
+            </div>
+          ))}
         </nav>
         <ai-menu chat="https://claude.ai/code" />
       </header>
