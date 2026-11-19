@@ -145,3 +145,6 @@ textarea{resize:vertical;line-height:1.5}
 .value .fact h3{color:var(--ok)}.value .est h3{color:var(--wind)}.value .asm h3{color:var(--bad)}
 .value footer{color:var(--mute);font-size:.86em}.value a{color:var(--wind)}
 @media (max-width:1100px){.cols,.grid2,.value .trust{grid-template-columns:1fr}.bar-row{grid-template-columns:1fr;gap:.2em}}
+.rates{margin-top:.6em;background:var(--bg)}
+.fair .bar-row{grid-template-columns:13em 1fr 12em}
+.tabs{flex-wrap:wrap}
