@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { type WindKey, WINDS, useStore } from '../store.ts'
+import { type Owner, type WindKey, WINDS, useStore } from '../store.ts'
 import { byId, facadesOf, lots, oldBuildings, towers, trees } from '../lib/site.ts'
 import { KEY_DAYS, dateLabel, hourLabel, sunAt } from '../lib/sun.ts'
 import { aptReport, exposure, exposureWord, parkSunHours, rankTmura, unitReport } from '../lib/analysis.ts'
@@ -185,6 +185,62 @@ function HomeOld() {
   )
 }
 
+/** רשימת בעלים פרטית: נשמרת רק בדפדפן הזה, ולא עולה לשרת או למאגר הקוד. */
+function parseOwners(text: string): Owner[] {
+  const out: Owner[] = []
+  for (const line of text.split('\n')) {
+    const c = line.split(/[|\t;]/).map((x) => x.trim())
+    if (c.length < 4 || !c[0]) continue
+    const lot = c[1].replace(/\D/g, ''), floor = Number(c[2].replace(/[^\d]/g, ''))
+    if (!towers.some((t) => t.lot === lot && t.real) || Number.isNaN(floor)) continue
+    out.push({ name: c[0], lot, floor, unit: c[3] })
+  }
+  return out
+}
+const plain = (x: string) => x.replace(/["'׳״\-־+().,]/g, ' ').replace(/\s+/g, ' ').trim()
+
+function Owners() {
+  const s = useStore()
+  const [q, setQ] = useState('')
+  const [edit, setEdit] = useState(false)
+  const [text, setText] = useState('')
+  const words = plain(q).split(' ').filter(Boolean)
+  const hits = words.length ? s.owners.filter((o) => words.every((w) => plain(o.name).includes(w))) : []
+  const go = (o: Owner) => {
+    const b = towers.find((t) => t.lot === o.lot)
+    const f = b?.real?.floors.find((x) => x.floor === o.floor)
+    if (!b || !f) return
+    const u = f.apts.find((x) => x.key === o.unit) ?? f.apts.find((x) => x.type === o.unit) ?? f.apts[0]
+    s.set({ mode: 'future', tab: 'home', apt: { ...s.apt, future: { id: b.id, floor: f.floor, facade: 'ne', unit: u.key } } })
+  }
+  return (
+    <div className="owners">
+      <h4>חיפוש דירה לפי שם בעלים</h4>
+      {s.owners.length ? (
+        <>
+          <input id="own-q" type="search" value={q} placeholder="שם, או חלק ממנו" onChange={(e) => setQ(e.target.value)} />
+          {words.length > 0 && (hits.length ? (
+            <table className="mini"><tbody>{hits.map((o) => (
+              <tr key={o.name + o.lot + o.floor + o.unit} className="row" onClick={() => go(o)}><td><b>{o.name}</b></td><td>בניין {o.lot}</td><td>קומה {o.floor}</td><td>{o.unit}</td></tr>
+            ))}</tbody></table>
+          ) : <p className="hint">לא נמצא שם כזה ברשימה.</p>)}
+        </>
+      ) : <p className="hint">הרשימה ריקה. מדביקים אותה פעם אחת, והיא נשמרת רק בדפדפן הזה.</p>}
+      <button id="own-edit" type="button" className="check" aria-pressed={edit} onClick={() => { setText(s.owners.map((o) => [o.name, o.lot, o.floor, o.unit].join(' | ')).join('\n')); setEdit(!edit) }}><i>{edit ? '✓' : ''}</i>עריכת רשימת הבעלים ({s.owners.length})</button>
+      {edit && (
+        <>
+          <textarea id="own-text" rows={7} dir="rtl" value={text} placeholder={'שורה לכל בעלים:\nשם | בניין | קומה | דירה\nלדוגמה: ישראל ישראלי | 101 | 9 | B5-3T'} onChange={(e) => setText(e.target.value)} />
+          <div className="checks">
+            <button id="own-save" type="button" className="act" onClick={() => { s.set({ owners: parseOwners(text) }); setEdit(false) }}>שמירה: {parseOwners(text).length} שורות תקינות</button>
+            <button id="own-clear" type="button" onClick={() => { s.set({ owners: [] }); setText('') }}>מחיקת הרשימה</button>
+          </div>
+        </>
+      )}
+      <p className="note"><b>פרטיות:</b> השמות נשמרים רק בדפדפן הזה. הם לא נשלחים לשרת, ולא נמצאים באתר או בקוד.</p>
+    </div>
+  )
+}
+
 function HomeNew() {
   const s = useStore()
   const apt = s.apt.future, b = byId(apt?.id ?? null)
@@ -254,7 +310,7 @@ function HomeNew() {
               ))}</tbody>
             </table>
           ) : <p className="hint">בבניין הזה לא סומנו דירות תמורה בתוכניות.</p>) : <p className="hint">מדרג את דירות התמורה.</p>}
-          <p className="note"><b>עובדה:</b> קו המתאר, מיקום הדירות והטיפוסים מתוכניות הבניינים, ושטח המכר מטבלת הדירות המוצעות. <b>הערכה:</b> {b.real!.how.startsWith('הערכה') ? 'מיקום הבניין הזה בתוך המגרש משוער, כי הגיליון משותף לשני הבניינים. ' : ''}דירת תמורה מזוהה לפי האות T בשם הטיפוס, ובמגדלי A גם דירות שלושת החדרים בקומות 1 עד 20, לפי טבלת הדירות. גובה הקומה מחלוקה שווה של גובה הבניין, כי אין עדיין חתך.</p>
+          <p className="note"><b>עובדה:</b> קו המתאר, מיקום הדירות והטיפוסים מתוכניות הבניינים, ושטח המכר מטבלת הדירות המוצעות. <b>הערכה:</b> {b.real!.how.startsWith('הערכה') ? 'מיקום הבניין הזה בתוך המגרש משוער, כי הגיליון משותף לשני הבניינים. ' : ''}דירות התמורה סומנו לפי טבלת הדירות המוצעות: האות T בשם הטיפוס, והדירות שרשומות בה לבעלי הקרקע. גובה הקומה מחלוקה שווה של גובה הבניין, כי אין עדיין חתך.</p>
         </>
       ) : <p className="hint">בוחרים בניין ברשימה, או לוחצים עליו במודל.</p>}
     </>
@@ -263,7 +319,7 @@ function HomeNew() {
 
 function Home() {
   const mode = useStore((s) => s.mode)
-  return mode === 'future' ? <HomeNew /> : <HomeOld />
+  return <><Owners />{mode === 'future' ? <HomeNew /> : <HomeOld />}</>
 }
 
 export default function Panel() {

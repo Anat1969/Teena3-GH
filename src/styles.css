@@ -102,3 +102,7 @@ select,input[type=number]{border:0;background:var(--wash);padding:.5em .6em;widt
 .units button[aria-pressed="true"] em{color:#BFE6C8}
 .mini tr.row{cursor:pointer}
 .mini.rank{font-size:.94em}
+.owners{display:grid;gap:.5em;padding-bottom:.8em;border-bottom:1px solid var(--line)}
+.owners h4{margin:0}
+input[type=search],textarea{border:0;background:var(--wash);padding:.55em .7em;width:100%;font:inherit;color:inherit}
+textarea{resize:vertical;line-height:1.5}

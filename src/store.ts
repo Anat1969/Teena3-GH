@@ -5,6 +5,7 @@ export type Mode = 'existing' | 'future'
 export type Tab = 'site' | 'sun' | 'wind' | 'home'
 export type WindKey = 'summer' | 'east' | 'storm'
 export interface Apt { id: number; floor: number; facade: string; unit?: string }
+export interface Owner { name: string; lot: string; floor: number; unit: string }
 export interface Score { street: number; floor: number; air: number; state: number; area: number }
 
 // משטר הרוחות: הערכה לפי הידע האקלימי המקובל לשפלת החוף. יוחלף בשושנת רוחות מדודה.
@@ -18,7 +19,7 @@ interface S {
   mode: Mode; tab: Tab; day: number; hour: number; playing: boolean
   sat: boolean; lots: boolean; trees: boolean; heat: boolean
   wind: WindKey; selected: number | null
-  apt: Record<Mode, Apt | null>; score: Score
+  apt: Record<Mode, Apt | null>; score: Score; owners: Owner[]
   cam: { view: 'bird' | 'top' | 'window'; n: number }
   set: (p: Partial<S>) => void
   setApt: (a: Apt | null) => void
@@ -37,11 +38,12 @@ export const useStore = create<S>((set, get) => ({
   wind: 'summer', selected: null,
   apt: { existing: null, future: null, ...(saved.apt ?? {}) },
   score: { street: 1, floor: 1, air: 1, state: 1, area: 0, ...(saved.score ?? {}) },
+  owners: saved.owners ?? [],
   cam: { view: 'bird', n: 0 },
   set: (p) => {
     set(p)
     const s = get()
-    try { localStorage.setItem(KEY, JSON.stringify({ apt: s.apt, score: s.score })) } catch { /* אחסון חסום: ממשיכים בלי שמירה */ }
+    try { localStorage.setItem(KEY, JSON.stringify({ apt: s.apt, score: s.score, owners: s.owners })) } catch { /* אחסון חסום: ממשיכים בלי שמירה */ }
   },
   setApt: (a) => get().set({ apt: { ...get().apt, [get().mode]: a } }),
   look: (view) => set({ cam: { view, n: get().cam.n + 1 } }),

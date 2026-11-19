@@ -10,9 +10,13 @@ site = json.loads((ROOT / "data" / "site.json").read_text(encoding="utf-8"))
 UNIT = re.compile(r"^(?:[ABC]\d(?:\.\d)?(?:PH)?(?:-[A-Z0-9]+)?|DPX\d)$")  # טיפוס דירה, לא סימון חתך כמו A102
 
 def is_tmura(plan, name, floor):
-    """דירת תמורה: האות T בשם הטיפוס. במגדלי A גם דירות שלושת החדרים בקומות 1 עד 20,
-    שסומנו בטבלת הדירות המוצעות כדירות של בעלי הקרקע (34 דירות, לפי סיכום הטבלה)."""
-    return name.endswith("T") or (plan == "A" and name in ("A3", "A3-1") and 1 <= floor <= 20)
+    """דירת תמורה: האות T בשם הטיפוס, וגם הדירות שסומנו בטבלת הדירות המוצעות כדירות של בעלי הקרקע:
+    במגדלי A דירות A3 בקומות 4 עד 23 ו-A3-1 בקומות 7 עד 20 (34 דירות), ובבניין C דירות C3 בקומות 2 עד 8."""
+    if name.endswith("T"):
+        return True
+    if plan == "A":
+        return (name == "A3" and 4 <= floor <= 23) or (name == "A3-1" and 7 <= floor <= 20)
+    return plan == "C" and name == "C3" and 2 <= floor <= 8
 
 def keyed(apts):
     """מפתח ייחודי לדירה בקומה: טיפוס שחוזר פעמיים מקבל מספר סידורי. תווית חלקית שנחתכה מתווית אחרת נזרקת."""
