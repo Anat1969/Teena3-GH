@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect } from 'react'
 import { type Tab, useStore } from './store.ts'
 import { KEY_DAYS, dateLabel, hourLabel, sunAt } from './lib/sun.ts'
 import Panel from './ui/Panel.tsx'
+import Value from './ui/Value.tsx'
 
 const Scene = lazy(() => import('./scene/Scene.tsx'))
 
@@ -10,7 +11,7 @@ declare module 'react' {
   namespace JSX { interface IntrinsicElements { 'ai-menu': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { chat?: string } } }
 }
 
-const TABS: [Tab, string][] = [['site', 'המתחם'], ['sun', 'שמש וצל'], ['wind', 'רוח'], ['home', 'הדירה שלי']]
+const TABS: [Tab, string][] = [['site', 'המתחם'], ['sun', 'שמש וצל'], ['wind', 'רוח'], ['home', 'הדירה שלי'], ['value', 'שווי ותמורה']]
 
 export default function App() {
   const s = useStore()
@@ -35,7 +36,7 @@ export default function App() {
         <ai-menu chat="https://claude.ai/code" />
       </header>
 
-      <main className="stage">
+      {s.tab === 'value' ? <main className="report"><Value /></main> : <main className="stage">
         <section className="view" aria-label="המודל">
           <Suspense fallback={<div className="loading">טוען את המודל</div>}><Scene /></Suspense>
 
@@ -69,7 +70,7 @@ export default function App() {
           <div className="credit">תצלום: Esri, Maxar, Earthstar Geographics</div>
         </section>
         <Panel />
-      </main>
+      </main>}
     </div>
   )
 }

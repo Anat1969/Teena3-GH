@@ -3,7 +3,7 @@ import { KEY_DAYS } from './lib/sun.ts'
 import { towers } from './lib/site.ts'
 
 export type Mode = 'existing' | 'future'
-export type Tab = 'site' | 'sun' | 'wind' | 'home'
+export type Tab = 'site' | 'sun' | 'wind' | 'home' | 'value'
 export type WindKey = 'summer' | 'east' | 'storm'
 export interface Apt { id: number; floor: number; facade: string; unit?: string }
 export interface Owner { name: string; lot: string; floor: number; unit: string }
