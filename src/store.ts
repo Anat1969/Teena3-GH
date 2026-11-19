@@ -4,7 +4,7 @@ import { KEY_DAYS } from './lib/sun.ts'
 export type Mode = 'existing' | 'future'
 export type Tab = 'site' | 'sun' | 'wind' | 'home'
 export type WindKey = 'summer' | 'east' | 'storm'
-export interface Apt { id: number; floor: number; facade: string }
+export interface Apt { id: number; floor: number; facade: string; unit?: string }
 export interface Score { street: number; floor: number; air: number; state: number; area: number }
 
 // משטר הרוחות: הערכה לפי הידע האקלימי המקובל לשפלת החוף. יוחלף בשושנת רוחות מדודה.
@@ -25,7 +25,7 @@ interface S {
   look: (view: 'bird' | 'top' | 'window') => void
 }
 
-const KEY = 'teena3.v1'
+const KEY = 'teena3.v2'
 function load(): Partial<S> {
   try { return JSON.parse(localStorage.getItem(KEY) ?? '{}') } catch { return {} }
 }

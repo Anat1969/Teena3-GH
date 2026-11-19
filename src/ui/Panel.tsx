@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { type WindKey, WINDS, useStore } from '../store.ts'
 import { byId, facadesOf, lots, oldBuildings, towers, trees } from '../lib/site.ts'
 import { KEY_DAYS, dateLabel, hourLabel, sunAt } from '../lib/sun.ts'
-import { aptReport, exposure, exposureWord, parkSunHours } from '../lib/analysis.ts'
+import { aptReport, exposure, exposureWord, parkSunHours, rankTmura, unitReport } from '../lib/analysis.ts'
 
 const n1 = (x: number) => x.toLocaleString('he', { maximumFractionDigits: 1 })
 const Check = ({ id, label, on, flip }: { id: string; label: string; on: boolean; flip: () => void }) => (
@@ -28,6 +28,7 @@ function Site() {
           <dl>
             <dt>גובה</dt><dd>{n1(b.h)} מ'</dd>
             <dt>קומות מעל הכניסה</dt><dd>{b.floors}</dd>
+            {b.real && <><dt>שטח קומה טיפוסית</dt><dd>{Math.round(b.real.floorArea).toLocaleString('he')} מ"ר</dd><dt>דירות בקומה טיפוסית</dt><dd>{b.real.floors[Math.floor(b.real.floors.length / 2)].apts.length}</dd></>}
             {lot?.rights && <><dt>יחידות דיור</dt><dd>{lot.rights.units || 'אין'}</dd><dt>שטח המגרש</dt><dd>{Math.round(lot.area).toLocaleString('he')} מ"ר</dd><dt>שטח עיקרי</dt><dd>{lot.rights.main.toLocaleString('he')} מ"ר</dd><dt>קומות מרתף</dt><dd>{lot.rights.basements || 'אין'}</dd></>}
             <dt>צל בצהרי 21 בדצמבר</dt><dd>{Math.round(b.h / Math.tan((34.66 * Math.PI) / 180))} מ'</dd>
           </dl>
@@ -45,7 +46,7 @@ function Site() {
         <Check id="l-lots" label="ייעודי קרקע" on={s.lots} flip={() => s.set({ lots: !s.lots })} />
         <Check id="l-trees" label="עצים" on={s.trees} flip={() => s.set({ trees: !s.trees })} />
       </div>
-      <p className="note"><b>הערכה:</b> כל מגדל מוצג כמעטפת המרבית שבתוך קו הבניין. תוכניות הבניינים יחליפו אותה בנפח האמיתי.</p>
+      <p className="note"><b>עובדה:</b> קו המתאר של בניינים 101 עד 104 מתוכניות הבניינים, ממוקם לפי קו המגרש שבגיליון. <b>הערכה:</b> הגובה לפי התוכנית, כי אין עדיין חתכים. בית הכנסת מוצג כמעטפת קו הבניין.</p>
       <a className="link" href="/tasrit.html" target="_blank" rel="noreferrer">התסריט המלא</a>
     </>
   )
@@ -81,7 +82,7 @@ function SunTab() {
       <h4>מפת שעות שמש על הקרקע</h4>
       <div className="checks"><Check id="l-heat" label="הצג מפת שעות שמש" on={s.heat} flip={() => s.set({ heat: !s.heat })} /></div>
       {s.heat && <div className="ramp"><span>צל כל היום</span><i /><span>שמש כל היום</span></div>}
-      <p className="note"><b>עובדה:</b> זוויות השמש מחושבות לפי שעון ישראל, כולל שעון קיץ. <b>הערכה:</b> הצל מחושב מול המעטפת המרבית, ולכן הוא רחב מהצל של הבניין האמיתי.</p>
+      <p className="note"><b>עובדה:</b> זוויות השמש מחושבות לפי שעון ישראל, כולל שעון קיץ. הצל מחושב מול קו המתאר של הקומה הטיפוסית, עד לגובה המרבי שבתוכנית.</p>
     </>
   )
 }
@@ -115,7 +116,7 @@ const SCORE = {
   state: { title: 'מצב פיזי', opts: [[1, 'ראויה למגורים'], [0.85, 'אינה ראויה למגורים']] },
 } as const
 
-function Home() {
+function HomeOld() {
   const s = useStore()
   const apt = s.apt[s.mode], b = byId(apt?.id ?? null)
   const list = (s.mode === 'future' ? towers.filter((t) => t.lot !== '401') : oldBuildings.filter((x) => x.h > 8))
@@ -182,6 +183,87 @@ function Home() {
       {s.mode === 'future' && <p className="note"><b>הערכה:</b> גובה הקומה מחושב מחלוקה שווה של גובה הבניין, והשמש נבדקת באמצע החזית. תוכניות הבניינים ידייקו את מיקום הדירה.</p>}
     </>
   )
+}
+
+function HomeNew() {
+  const s = useStore()
+  const apt = s.apt.future, b = byId(apt?.id ?? null)
+  const list = towers.filter((t) => t.real)
+  const fl = b?.real?.floors.find((f) => f.floor === apt?.floor) ?? null
+  const unit = fl?.apts.find((u) => u.key === apt?.unit) ?? null
+  const report = useMemo(() => (b && apt && unit ? unitReport(b, apt.floor, unit) : null), [b, apt, unit])
+  const [rank, setRank] = useState<ReturnType<typeof rankTmura> | null>(null)
+  useEffect(() => {
+    setRank(null)
+    if (!b) return
+    const id = setTimeout(() => setRank(rankTmura(b)), 40)
+    return () => clearTimeout(id)
+  }, [b])
+  const pick = (id: number, floor?: number, type?: string) => {
+    const nb = byId(id)
+    if (!nb?.real) return
+    const f = nb.real.floors.find((x) => x.floor === floor) ?? nb.real.floors[Math.floor(nb.real.floors.length / 2)]
+    s.setApt({ id: nb.id, floor: f.floor, facade: 'ne', unit: f.apts.find((u) => u.key === type)?.key ?? f.apts[0].key })
+  }
+  const blockers = (m: Map<number, number>) => [...m.entries()].sort((a, c) => c[1] - a[1]).slice(0, 2).map(([id, h]) => `${byId(id)?.name ?? 'בנייני השכנים'} (${n1(h)} ש')`).join(', ')
+  return (
+    <>
+      <p className="insight"><mark>הדירות כאן הן מתוכניות הבניינים.</mark> בוחרים בניין, קומה ודירה, ורואים את השמש שלה.</p>
+      <div className="pick">
+        <label htmlFor="apt-b">בניין</label>
+        <select id="apt-b" value={b?.real ? b.id : ''} onChange={(e) => pick(Number(e.target.value))}>
+          <option value="" disabled>בחירה, או לחיצה במודל</option>
+          {list.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+        </select>
+        {b?.real && apt && fl && <>
+          <label htmlFor="apt-f">קומה <b>{apt.floor}</b> מתוך {b.real.top}</label>
+          <input id="apt-f" type="range" min={b.real.floors[0].floor} max={b.real.top} value={apt.floor} onChange={(e) => pick(b.id, Number(e.target.value), apt.unit)} />
+          <span className="lab">דירה בקומה</span>
+          <div className="seg wide units" role="group" aria-label="דירה">
+            {fl.apts.map((u) => <button key={u.key} type="button" aria-pressed={apt.unit === u.key} onClick={() => pick(b.id, apt.floor, u.key)}>{u.key}{u.tmura && <em>תמורה</em>}</button>)}
+          </div>
+        </>}
+      </div>
+      {report && unit && apt && b ? (
+        <>
+          <h4>דירה {unit.type}, קומה {apt.floor}: פונה ל{report.faces.map((f) => f.name).join(' ול')}</h4>
+          <div className="stats">
+            <div><b>{unit.area ? n1(unit.area) : ''}</b>מ"ר, שטח מכר</div>
+            <div><b>{/^[A-Z](\d(?:\.\d)?)/.exec(unit.type)?.[1] ?? ''}</b>חדרים</div>
+            <div><b>{n1(report.z)} מ'</b>גובה מהקרקע</div>
+            <div><b>{unit.tmura ? 'כן' : 'לא'}</b>דירת תמורה</div>
+          </div>
+          <table className="mini">
+            <thead><tr><th>עונה</th><th>שמש ישירה</th><th>מתי</th><th>מי מצל</th></tr></thead>
+            <tbody>{report.days.map((d) => (
+              <tr key={d.name}><td><b>{d.name}</b></td><td className={d.r.hours >= 3 ? 'hi' : ''}>{n1(d.r.hours)} שעות</td>
+                <td>{d.r.first !== null ? `${hourLabel(d.r.first)} עד ${hourLabel(d.r.last!)}` : 'אין'}</td><td>{blockers(d.r.blocked) || 'אין'}</td></tr>
+            ))}</tbody>
+          </table>
+          <p>{report.faces.map((f, i) => `${f.name}: ${n1(report.days[0].r.perFace[i])} שעות בחורף, ${n1(report.days[2].r.perFace[i])} בקיץ`).join(' · ')}</p>
+          <h4>רוח</h4>
+          <p>{(Object.keys(WINDS) as WindKey[]).map((k) => `${WINDS[k].name}: ${exposureWord(Math.max(...report.faces.map((f) => exposure(f, WINDS[k].from))))}`).join(' · ')}</p>
+          <button type="button" className="act" onClick={() => s.look('window')}>מבט מהחלון</button>
+          <h4>דירות התמורה ב{b.name}, לפי שמש בחורף</h4>
+          {rank ? (rank.length ? (
+            <table className="mini rank">
+              <thead><tr><th>קומה</th><th>דירה</th><th>פונה ל</th><th>חורף</th><th>קיץ</th></tr></thead>
+              <tbody>{rank.map((r) => (
+                <tr key={`${r.floor}${r.unit.key}`} className={r.floor === apt.floor && r.unit.key === apt.unit ? 'on' : 'row'} onClick={() => pick(b.id, r.floor, r.unit.key)}>
+                  <td><b>{r.floor}</b></td><td>{r.unit.type}</td><td>{r.faces}</td><td className={r.winter >= 3 ? 'hi' : ''}>{n1(r.winter)}</td><td>{n1(r.summer)}</td></tr>
+              ))}</tbody>
+            </table>
+          ) : <p className="hint">בבניין הזה לא סומנו דירות תמורה בתוכניות.</p>) : <p className="hint">מדרג את דירות התמורה.</p>}
+          <p className="note"><b>עובדה:</b> קו המתאר, מיקום הדירות והטיפוסים מתוכניות הבניינים, ושטח המכר מטבלת הדירות המוצעות. <b>הערכה:</b> {b.real!.how.startsWith('הערכה') ? 'מיקום הבניין הזה בתוך המגרש משוער, כי הגיליון משותף לשני הבניינים. ' : ''}דירת תמורה מזוהה לפי האות T בשם הטיפוס, ובמגדלי A גם דירות שלושת החדרים בקומות 1 עד 20, לפי טבלת הדירות. גובה הקומה מחלוקה שווה של גובה הבניין, כי אין עדיין חתך.</p>
+        </>
+      ) : <p className="hint">בוחרים בניין ברשימה, או לוחצים עליו במודל.</p>}
+    </>
+  )
+}
+
+function Home() {
+  const mode = useStore((s) => s.mode)
+  return mode === 'future' ? <HomeNew /> : <HomeOld />
 }
 
 export default function Panel() {

@@ -1,11 +1,14 @@
 // מקור הנתונים היחיד: data/site.json, שנבנה מקובצי התוכנית בכלי tools/build-data.py.
 // צירים מקומיים: x מזרחה, y צפונה, במטרים, סביב נקודת הייחוס של התוכנית.
 import raw from '../../data/site.json' with { type: 'json' }
+import rawBuildings from '../../data/buildings.json' with { type: 'json' }
 
 export type Pt = [number, number]
 export interface Rights { floors: number; basements: number; height: number; units: number; coverage: number; main: number; service: number }
 export interface Lot { num: string; use: string; code: number; area: number; rings: Pt[][]; rights: Rights | null }
-export interface Building { id: number; kind: 'tower' | 'old' | 'ctx'; name: string; pts: Pt[]; h: number; floors: number; lot?: string }
+export interface Unit { key: string; type: string; at: Pt; tmura: boolean; area: number | null }
+export interface Real { plan: string; how: string; base: number; top: number; floorArea: number; floors: { floor: number; apts: Unit[] }[] }
+export interface Building { id: number; kind: 'tower' | 'old' | 'ctx'; name: string; pts: Pt[]; h: number; floors: number; lot?: string; real?: Real }
 export interface Facade { key: string; name: string; bearing: number; nx: number; ny: number; at: Pt; length: number }
 
 const d = raw as unknown as {
@@ -50,13 +53,18 @@ const open = (pts: Pt[]) => (pts.length > 1 && pts[0][0] === pts[pts.length - 1]
 
 const lotOf = (p: Pt) => lots.find((l) => l.rights && inside(p, l.rings[0]))
 
+const planned = rawBuildings as unknown as Record<string, { plan: string; how: string; base: number; floor_area: number; pts: Pt[]; floors: { floor: number; apts: Unit[] }[] }>
+
 let nextId = 1
 // המגדלים: המעטפת המרבית שבתוך קו הבניין, בגובה שבטבלה 5. תוכניות הבניינים יחליפו אותה.
 export const towers: Building[] = d.lines
   .filter((l) => l.kind === 'line' && l.closed)
   .map((l) => {
-    const pts = open(l.pts), lot = lotOf(centroid(pts))!
-    return { id: nextId++, kind: 'tower' as const, name: lot.num === '401' ? 'בית הכנסת, תא 401' : `מגדל ${lot.num}`, pts, h: lot.rights!.height, floors: lot.rights!.floors, lot: lot.num }
+    const env = open(l.pts), lot = lotOf(centroid(env))!
+    // כשיש תוכנית בניין, קו המתאר האמיתי של הקומה הטיפוסית מחליף את מעטפת קו הבניין.
+    const plan = planned[lot.num]
+    const real: Real | undefined = plan && { plan: plan.plan, how: plan.how, base: plan.base, top: Math.max(...plan.floors.map((f) => f.floor)), floorArea: plan.floor_area, floors: plan.floors }
+    return { id: nextId++, kind: 'tower' as const, name: lot.num === '401' ? 'בית הכנסת, תא 401' : `בניין ${lot.num}`, pts: plan ? plan.pts : env, h: lot.rights!.height, floors: lot.rights!.floors, lot: lot.num, real }
   })
   .sort((a, b) => a.lot!.localeCompare(b.lot!))
 
@@ -96,6 +104,22 @@ export function facadesOf(b: Building): Facade[] {
 }
 
 /** גובה אמצע הקומה מעל הקרקע. הערכה: הגובה הכולל מחולק שווה בין הקומות. */
-export const floorZ = (b: Building, floor: number) => ((floor - 0.5) * b.h) / b.floors
+export const floorZ = (b: Building, floor: number) =>
+  b.real ? (b.h * (floor - 1 + b.real.base + 0.5)) / (b.real.top + b.real.base + 1) : ((floor - 0.5) * b.h) / b.floors
+
+/** החזיתות שדירה פונה אליהן: הכיוונים שבהם היא קרובה לקצה הבניין, ונקודה על הקיר החיצון בכל אחד. */
+export function unitFaces(b: Building, at: Pt): Facade[] {
+  const out: (Facade & { d: number })[] = []
+  for (const f of facadesOf(b)) {
+    let max = -Infinity, min = Infinity
+    for (const p of b.pts) { const s = p[0] * f.nx + p[1] * f.ny; max = Math.max(max, s); min = Math.min(min, s) }
+    const d = max - (at[0] * f.nx + at[1] * f.ny)
+    if (d > 0.45 * (max - min)) continue
+    let q: Pt = at
+    for (let s = 0.5; s < 60; s += 0.5) { const n: Pt = [at[0] + f.nx * s, at[1] + f.ny * s]; if (!inside(n, b.pts)) break; q = n }
+    out.push({ ...f, at: q, d })
+  }
+  return out.sort((x, y) => x.d - y.d).slice(0, 3)
+}
 
 export const byId = (id: number | null) => [...towers, ...oldBuildings].find((b) => b.id === id) ?? null

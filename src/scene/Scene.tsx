@@ -3,10 +3,10 @@ import * as THREE from 'three'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Html, OrbitControls } from '@react-three/drei'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
-import { type Building, type Pt, boundary, byId, context, facadesOf, floorZ, geo, lots, oldBuildings, streets, towers, trees } from '../lib/site.ts'
+import { type Building, type Pt, boundary, byId, context, facadesOf, geo, lots, oldBuildings, streets, towers, trees } from '../lib/site.ts'
 import { sunAt } from '../lib/sun.ts'
 import { groundSunHours } from '../lib/shade.ts'
-import { heightMapFor } from '../lib/analysis.ts'
+import { aptSpot, heightMapFor } from '../lib/analysis.ts'
 import { WINDS, useStore } from '../store.ts'
 
 const INK = '#2E2E2B'
@@ -89,8 +89,9 @@ function Block({ b }: { b: Building }) {
   const g = useMemo(() => prism(b.pts, b.h), [b])
   const lines = useMemo(() => {
     const pos: number[] = []
-    for (let f = 1; f <= b.floors; f++) {
-      const y = (f * b.h) / b.floors
+    const levels = b.real ? b.real.top + b.real.base + 1 : b.floors
+    for (let f = 1; f <= levels; f++) {
+      const y = (f * b.h) / levels
       b.pts.forEach((p, i) => { const q = b.pts[(i + 1) % b.pts.length]; pos.push(p[0], y, -p[1], q[0], y, -q[1]) })
     }
     b.pts.forEach((p) => pos.push(p[0], 0, -p[1], p[0], b.h, -p[1]))
@@ -108,7 +109,7 @@ function Block({ b }: { b: Building }) {
         onPointerOut={() => { setHover(false); document.body.style.cursor = '' }}
         onClick={(e) => {
           e.stopPropagation()
-          if (tab === 'home') { if (b.h > 8) setApt({ id: b.id, floor: apt?.id === b.id ? apt.floor : Math.ceil(b.floors / 2), facade: apt?.id === b.id ? apt.facade : facadesOf(b)[0].key }) }
+          if (tab === 'home') { if (b.h > 8 && apt?.id !== b.id) { const fl = b.real ? b.real.floors[Math.floor(b.real.floors.length / 2)] : null; setApt({ id: b.id, floor: fl ? fl.floor : Math.ceil(b.floors / 2), facade: facadesOf(b)[0].key, unit: fl?.apts[0]?.key }) } }
           else set({ selected: b.id })
         }}>
         <meshLambertMaterial color={color} />
@@ -276,13 +277,13 @@ function Wind() {
 function AptMarker() {
   const apt = useStore((s) => s.apt[s.mode])
   const b = byId(apt?.id ?? null)
-  if (!apt || !b) return null
-  const f = facadesOf(b).find((x) => x.key === apt.facade) ?? facadesOf(b)[0]
-  const z = floorZ(b, apt.floor), fh = b.h / b.floors
+  const spot = aptSpot(apt, b)
+  if (!apt || !b || !spot) return null
+  const f = spot.face, z = spot.z, fh = b.h / (b.real ? b.real.top + b.real.base + 1 : b.floors)
   const rotY = Math.atan2(f.nx, -f.ny) + Math.PI
   return (
     <group position={v(f.at[0] + f.nx * 0.4, f.at[1] + f.ny * 0.4, z)} rotation-y={rotY}>
-      <mesh><boxGeometry args={[Math.min(9, f.length * 0.5), fh * 0.9, 0.9]} /><meshBasicMaterial color={APT} /></mesh>
+      <mesh><boxGeometry args={[Math.min(8, Math.max(4, f.length * 0.4)), fh * 0.9, 0.9]} /><meshBasicMaterial color={APT} /></mesh>
       <Html position={[0, fh, 0]} center zIndexRange={[8, 0]} style={{ pointerEvents: 'none' }}><div className="tag mine">הדירה שלי</div></Html>
     </group>
   )
@@ -296,7 +297,7 @@ function Rig() {
   useEffect(() => {
     const s = useStore.getState(), apt = s.apt[s.mode], b = byId(apt?.id ?? null)
     if (cam.view === 'window' && apt && b) {
-      const f = facadesOf(b).find((x) => x.key === apt.facade) ?? facadesOf(b)[0], z = floorZ(b, apt.floor)
+      const spot = aptSpot(apt, b)!, f = spot.face, z = spot.z
       camera.position.copy(v(f.at[0] + f.nx * 3, f.at[1] + f.ny * 3, z + 0.4))
       ctl.current.target.copy(v(f.at[0] + f.nx * 160, f.at[1] + f.ny * 160, Math.max(2, z - 25)))
     } else if (cam.view === 'top') {

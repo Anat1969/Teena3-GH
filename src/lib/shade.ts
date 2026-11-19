@@ -80,3 +80,21 @@ export function facadeSun(hm: HeightMap, at: Pt, nx: number, ny: number, z: numb
   }
   return r
 }
+
+export interface UnitDay { hours: number; first: number | null; last: number | null; blocked: Map<number, number>; perFace: number[] }
+/** שמש ישירה בדירה שפונה לכמה חזיתות: שעה נספרת כשלפחות חזית אחת מוארת. */
+export function unitSun(hm: HeightMap, faces: { at: Pt; nx: number; ny: number }[], z: number, day: number, ownId: number): UnitDay {
+  const r: UnitDay = { hours: 0, first: null, last: null, blocked: new Map(), perFace: faces.map(() => 0) }
+  for (const s of daySamples(day)) {
+    let lit = false, by = 0
+    faces.forEach((f, i) => {
+      if (s.sun.ex * f.nx + s.sun.ey * f.ny < 0.05) return
+      const b = blocker(hm, f.at[0] + f.nx * 1.5, f.at[1] + f.ny * 1.5, z, s.sun, ownId)
+      if (b) by = b
+      else { lit = true; r.perFace[i] += STEP }
+    })
+    if (lit) { r.hours += STEP; r.first ??= s.hour; r.last = s.hour + STEP }
+    else if (by) r.blocked.set(by, (r.blocked.get(by) ?? 0) + STEP)
+  }
+  return r
+}

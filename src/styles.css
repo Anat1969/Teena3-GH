@@ -97,3 +97,8 @@ select,input[type=number]{border:0;background:var(--wash);padding:.5em .6em;widt
   .credit{display:none}
 }
 @media (prefers-reduced-motion:reduce){button{transition:none}}
+.units{flex-wrap:wrap}.units button{display:grid;gap:0;justify-items:center;line-height:1.2;direction:ltr}
+.units em{font-style:normal;font-size:.72em;color:var(--ok);direction:rtl}
+.units button[aria-pressed="true"] em{color:#BFE6C8}
+.mini tr.row{cursor:pointer}
+.mini.rank{font-size:.94em}
