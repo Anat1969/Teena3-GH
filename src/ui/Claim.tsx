@@ -1,6 +1,8 @@
 // בדיקת טענת בעלי הדירות המורחבות: מה אומר ההסכם, מה אומר המכתב, ומה מראים נתוני המודל.
 import { useEffect, useState } from 'react'
-import { type Row, med, tmuraRows } from '../lib/claim.ts'
+import { FOUR, type Row, VALUE, estimate, med, tmuraRows } from '../lib/claim.ts'
+import { towers } from '../lib/site.ts'
+import { useStore } from '../store.ts'
 
 const nis = (x: number) => Math.round(x).toLocaleString('he')
 const n1 = (x: number) => x.toLocaleString('he', { maximumFractionDigits: 1 })
@@ -13,6 +15,7 @@ const VERDICT: Record<V, string> = { yes: 'נתמך בנתונים', part: 'נת
 export default function Claim() {
   const [rows, setRows] = useState<Row[] | null>(null)
   useEffect(() => { const id = setTimeout(() => setRows(tmuraRows()), 30); return () => clearTimeout(id) }, [])
+  const store = useStore()
   const [value, setValue] = useState(2740000), [perFloor, setPerFloor] = useState(0.75), [target, setTarget] = useState(14)
   if (!rows) return <div className="value"><p className="hint">מחשב את נתוני דירות התמורה.</p></div>
   const tw = rows.filter((r) => r.expanded && (r.lot === '102' || r.lot === '103'))
@@ -54,7 +57,24 @@ export default function Claim() {
             <tbody>{claims.map((c) => <tr key={c.claim}><td><b>{c.claim}</b></td><td>{c.fact}</td><td className={c.v === 'yes' ? 'hi' : c.v === 'no' ? 'lo' : ''}>{VERDICT[c.v]}</td></tr>)}</tbody>
           </table></div>
 
-          <h2>2. מה אומר ההסכם</h2>
+          <h2>2. ארבע הדירות, בשמות הבעלים</h2>
+          <div className="tw"><table className="mini">
+            <thead><tr><th>בעלים</th><th>בניין</th><th>קומה</th><th>טיפוס</th><th>שטח, מ"ר</th><th>פונה ל</th><th>שמש בחורף</th><th>אומדן שווי</th><th>בקומה 14</th></tr></thead>
+            <tbody>{FOUR.map((o) => { const r = tw.find((x) => x.lot === o.lot && x.floor === o.floor && x.type === o.type); if (!r) return null; return (
+              <tr key={o.name} className="row" onClick={() => { const b = towers.find((x) => x.lot === o.lot)!; store.set({ tab: 'home', mode: 'future', plan: false, apt: { ...store.apt, future: { id: b.id, floor: o.floor, facade: 'ne', unit: o.type } } }) }}>
+                <td><b>{o.name}</b></td><td>{o.lot}</td><td>{o.floor}</td><td>{o.type}</td><td>{r.area}</td><td>{r.faces}</td><td>{n1(r.winter)} ש'</td><td>{nis(r.value)}</td><td className="hi">{nis(estimate(r.area, 14))}</td></tr>
+            ) })}</tbody>
+          </table></div>
+          <p className="note">לחיצה על שורה פותחת את הדירה במודל. השמות מוצגים באישור ארבעת הבעלים. <b>לבדיקה:</b> שתי דירות A4 שבקומה 4 רשומות בטבלת האקסל בבניינים הפוכים מאלה שבטבלה הסרוקה. כאן הן לפי הטבלה הסרוקה, שתואמת לכיוון שרשום לכל אחת.</p>
+
+          <h2>3. אומדן שווי ראשוני לכל דירות התמורה</h2>
+          <div className="tw"><table className="mini">
+            <thead><tr><th>קבוצה</th><th>דירות</th><th>שטח חציוני</th><th>קומה חציונית</th><th>ש"ח למ"ר</th><th>שווי חציוני</th><th>שווי למ"ר, יחסית לארבע</th></tr></thead>
+            <tbody>{groups.map(([name, g]) => <tr key={name} className={g === tw ? 'on' : ''}><td><b>{name}</b></td><td>{g.length}</td><td>{n1(med(g.map((r) => r.area)))}</td><td>{n1(med(g.map((r) => r.floor)))}</td><td>{nis(med(g.map((r) => r.ppm)))}</td><td>{nis(med(g.map((r) => r.value)))}</td><td className={g === tw || med(g.map((r) => r.ppm)) < med(tw.map((r) => r.ppm)) ? '' : 'hi'}>{g === tw ? 'בסיס' : (() => { const d = Math.round((med(g.map((r) => r.ppm)) / med(tw.map((r) => r.ppm)) - 1) * 100); return d >= 0 ? `${d}% יותר` : `${-d}% פחות` })()}</td></tr>)}</tbody>
+          </table></div>
+          <p className="note"><b>הנחות האומדן:</b> {nis(VALUE.base)} ש"ח למ"ר בקומה 5, תוספת של {VALUE.perFloor}% לכל קומה, ותוספת של {VALUE.small}% למ"ר בדירה של עד 85 מ"ר, כפי שנמצא בעסקאות במגדל הצמוד. <b>זו הערכה ראשונית ולא שומה.</b> היא מראה את מבנה הפער: הדירות הרגילות שוות כ־14% יותר לכל מ"ר, בגלל הקומה והגודל. מול המורחבות האחרות הפער קטן, 2% בלבד, כי בבניין 101 הקומות אינן גבוהות בהרבה במונחים מוחלטים.</p>
+
+          <h2>4. מה אומר ההסכם</h2>
           <div className="tw"><table className="mini crit">
             <thead><tr><th>סעיף</th><th>מה נקבע</th><th>האם היזם עומד בו</th></tr></thead>
             <tbody>
@@ -65,12 +85,12 @@ export default function Claim() {
               <tr><td><b>10.5 עד 10.8, בחירה</b></td><td>השמאי מחלק את הבעלים לקבוצות לפי שטח הזכאות. כל בעלים בוחר רק מתוך הטיפוס של הקבוצה שלו, לפי סדר הניקוד.</td><td className="lo">כאן הפער. ההסכם מניח בחירה, אבל קבוצה של דירה אחת מרוקנת אותה מתוכן.</td></tr>
               <tr><td><b>10.2, שומת הדירות הקיימות</b></td><td>שמאי הבעלים, בשכר שמשלם היזם, "יישום את שווי דירותיהם הקיימות של הבעלים" וייתן ניקוד לכל דירה, לפי היחס בין שוויה לשווי הכולל של כל הדירות הקיימות. מכאן נגזר סדר הבחירה.</td><td className="hi">זו זכות שכבר קיימת בהסכם: שומה של כל 100 הדירות הקיימות. אפשר לבקש אותה במלואה.</td></tr>
               <tr><td><b>10.4</b></td><td>טבלת סדר הבחירה סופית, ואין זכות לערער עליה או על הפרמטרים השמאיים.</td><td>מגביל טענות נגד הניקוד. אינו חל על השיבוץ עצמו.</td></tr>
-              <tr><td><b>סוף סעיף 3, איסור העדפה</b></td><td>היזם אינו רשאי להעדיף בעלים או לתת תמורה שאינה בהסכם, כולל שדרוגים ופיצוי, בלי אישור הנציגות מראש ובכתב או הסדר פשרה.</td><td className="lo">הסעיף החשוב ביותר, לשני הכיוונים. ראי סעיף 3 בדף.</td></tr>
+              <tr><td><b>סוף סעיף 3, איסור העדפה</b></td><td>היזם אינו רשאי להעדיף בעלים או לתת תמורה שאינה בהסכם, כולל שדרוגים ופיצוי, בלי אישור הנציגות מראש ובכתב או הסדר פשרה.</td><td className="lo">הסעיף החשוב ביותר, לשני הכיוונים. ראי סעיף 5 בדף.</td></tr>
               <tr><td><b>20.1, שדרוג</b></td><td>לפני תחילת השיווק, בעלים רשאי להחליף את דירת התמורה באחת מדירות היזם, בתשלום.</td><td>זה המסלול שהמכתב מבקש לקבל בלי תשלום עד קומה מסוימת.</td></tr>
             </tbody>
           </table></div>
 
-          <h2>3. איפה יש בסיס, ואיפה אין</h2>
+          <h2>5. איפה יש בסיס, ואיפה אין</h2>
           <ol className="verdict">
             <li><b>אין הפרה מפורשת בשטח ובקומה.</b> ההסכם מתיר קומה 4, והשטח תואם. מי שמחפש סעיף שהופר בנקודות האלה לא ימצא.</li>
             <li><b>יש בסיס בעניין הבחירה.</b> מנגנון סעיף 10 בנוי על בחירה בתוך קבוצה. אם לארבע הוכתבה דירה אחת, ולמורחבות אחרות הוצעו כמה, זו החלה שונה של אותו מנגנון על בעלים מאותו סוג.</li>
@@ -81,7 +101,7 @@ export default function Claim() {
         </div>
 
         <div className="calc">
-          <h2>4. כמה שווה התיקון שהמכתב מבקש</h2>
+          <h2>6. כמה שווה התיקון שהמכתב מבקש</h2>
           <p>המכתב מבקש שדרוג בלי תשלום עד קומה 14 במגדל, או עד קומה 9 בבניין 101.</p>
           <Num id="c-v" label="שווי הדירה היום, בקומה הנוכחית" value={value} set={setValue} step={10000} unit='ש"ח' />
           <Num id="c-p" label="תוספת שווי לכל קומה" value={perFloor} set={setPerFloor} step={0.25} unit="%" />
@@ -93,7 +113,7 @@ export default function Claim() {
           </table>
           <p className="note"><b>הערכה:</b> התוספת לקומה היא הנחה. הנתון המדויק הוא מחירון היזם, שבו רשום ההפרש בין קומות. בעסקאות בשכונה לא נמצאה תוספת מדידה לקומה.</p>
 
-          <h2>5. המהלך בשני שלבים, לפי סעיף 10.2</h2>
+          <h2>7. המהלך בשני שלבים, לפי סעיף 10.2</h2>
           <ol className="verdict">
             <li><b>עכשיו: לבקש את שומת סעיף 10.2 במלואה.</b> שווי כל אחת מ־100 הדירות הקיימות, והניקוד שנגזר ממנו. זו דרישה קלה, כי ההסכם עצמו מחייב את השומה.</li>
             <li><b>בעוד כחצי שנה: לבקש שומה של דירות התמורה,</b> באותה שיטה ואצל אותו שמאי. ההסכם אינו מחייב שומה כזו, ולכן צריך לבקש אותה במפורש או להזמין אותה.</li>
@@ -102,7 +122,7 @@ export default function Claim() {
           </ol>
           <p className="note"><b>הערכה:</b> סעיף 10.2 קובע שומה לצורך סדר בחירה בלבד, וסעיף 10.4 חוסם ערעור על הניקוד. לכן השומה היא ראיה לפער, ולא עילה בפני עצמה. <b>לבדיקה:</b> בטבלה החדשה, שתי דירות A4 בקומה 4 רשומות בבניינים הפוכים מאלה שבטבלה הסרוקה. לפי המודל, הדירה שפונה לדרום־מזרח נמצאת ב־102, וזו שפונה לצפון־מערב ב־103.</p>
 
-          <h2>6. מה חסר כדי להכריע</h2>
+          <h2>8. מה חסר כדי להכריע</h2>
           <ol className="verdict">
             <li><b>נספח ג', טבלת שטחי דירות הבעלים,</b> וטבלת השיבוץ הסופית. מהן רואים אם לארבע הוקצתה קבוצה של דירה אחת.</li>
             <li><b>טבלת הניקוד של השמאי.</b> המכתב טוען שלפי הניקוד הגיעה להן קומה 9 בבניין 101.</li>

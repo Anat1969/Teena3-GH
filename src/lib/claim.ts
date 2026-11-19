@@ -5,7 +5,19 @@ import { unitSun } from './shade.ts'
 import { floorZ } from './site.ts'
 import { KEY_DAYS } from './sun.ts'
 
-export interface Row { lot: string; type: string; floor: number; top: number; rel: number; area: number | null; expanded: boolean; faces: string; park: boolean; winter: number; units: number }
+export interface Row { value: number; ppm: number; lot: string; type: string; floor: number; top: number; rel: number; area: number; expanded: boolean; faces: string; park: boolean; winter: number; units: number }
+// שטחי דירה לטיפוסים שלא נקראו מהטבלה הסרוקה, מטבלת האקסל של דירות התמורה
+const AREA_MORE: Record<string, number> = { 'B5-3T': 131, 'B5-2T': 137.3, 'B5-5T': 130, 'B5-7T': 135, 'B3-1T': 80, 'B3-2T': 80, DPX0: 83.5, A4: 103, 'A4-4T': 108, 'A4-2T': 102.2, 'C4.5-T': 125.8, 'C6-T': 147.5 }
+/** אומדן שווי ראשוני לדירת תמורה: שטח כפול מחיר בסיס, עם תוספת לקומה ותוספת למ"ר בדירה קטנה. הנחות, לא שומה. */
+export const VALUE = { base: 26000, perFloor: 0.5, small: 10 }
+export const estimate = (area: number, floor: number, v = VALUE) => area * v.base * (1 + (v.perFloor * (floor - 5)) / 100) * (area <= 85 ? 1 + v.small / 100 : 1)
+/** ארבעת בעלי הדירות המורחבות שבמגדלים, שאישרו לחשוף את שמם (19.11.2026). הבניין של שתי דירות קומה 4 לפי הטבלה הסרוקה, ראו הערה בדף. */
+export const FOUR = [
+  { name: 'עובדיה ויהודית דוד', lot: '103', floor: 5, type: 'A4-2T' },
+  { name: 'חן שני', lot: '102', floor: 6, type: 'A4-4T' },
+  { name: 'יניב כהן', lot: '102', floor: 4, type: 'A4' },
+  { name: 'נינה צוקר', lot: '103', floor: 4, type: 'A4' },
+]
 const park = centroid(lots.find((l) => l.num === '501')!.rings[0])
 const rooms = (t: string) => (t.startsWith('DPX') ? 5 : Number(/^[A-Z](\d)/.exec(t)?.[1] ?? 0))
 const unitsIn = (b: Building) => lots.find((l) => l.num === b.lot)!.rights!.units
@@ -47,7 +59,8 @@ export function tmuraRows(): Row[] {
     const faces = unitFaces(b, u.at)
     const d = Math.hypot(park[0] - u.at[0], park[1] - u.at[1]), px = (park[0] - u.at[0]) / d, py = (park[1] - u.at[1]) / d
     out.push({
-      lot: b.lot!, type: u.type, floor: f.floor, top: b.real!.top, rel: f.floor / b.real!.top, area: u.area, expanded: rooms(u.type) >= 4,
+      lot: b.lot!, type: u.type, floor: f.floor, top: b.real!.top, rel: f.floor / b.real!.top, area: AREA_MORE[u.type] ?? u.area ?? 80,
+      value: estimate(AREA_MORE[u.type] ?? u.area ?? 80, f.floor), ppm: estimate(AREA_MORE[u.type] ?? u.area ?? 80, f.floor) / (AREA_MORE[u.type] ?? u.area ?? 80), expanded: rooms(u.type) >= 4,
       faces: faces.map((x) => x.name).join(' ו'), park: faces.some((x) => x.nx * px + x.ny * py > 0.5),
       winter: unitSun(hm, faces, floorZ(b, f.floor), KEY_DAYS[0].day, b.id).hours, units: unitsIn(b),
     })
